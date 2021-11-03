@@ -26,11 +26,27 @@ uint16_t BaseTurnoutAddress;                    // First turnout address
 int positionsInUse[] = {1,2,3,4,10,20,30};      // Array defining the positions actually in use
 //int positionsInUse[0];                          // If all positions are in use, leave array empty
 
-// Calculate the available positions based on the degree of separation
-int positionsAvailable = 360 / positionDegrees;
+// Set up our AccelStepper object
+#define FULLSTEP 4
+AccelStepper myStepper(FULLSTEP,8,10,9,11);
 
-// Calculate step positions from 0 for each position
+// Calculate the available positions based on the degree of separation, must be evenly divisible!
+const int positionsAvailable = 360 / positionDegrees;
+long stepsPerPosition = 2048 / positionsAvailable;
 
+// Configure a struct for our positions then calculate step positions from 0 for each position to populate it
+typedef struct {
+  int positionIndex;                            // Index of the position
+  long steps;                                   // Steps from 0 to reach the position
+} position_def;
+
+position_def positions[positionsAvailable];
+
+/*
+for (int i = 0; i < positionsAvailable; i++) {
+  positions[i] = (position_def){i, i + stepsPerPosition};
+}
+*/
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
@@ -148,10 +164,23 @@ void setup() {
   // Initialise our turnouts
   initTurntable();
   uint8_t lastPosition = positionsAvailable - 1;
-  Serial.println((String)"Init Done, base turntable address is: " + BaseTurnoutAddress + " and last turntable address is " + BaseTurnoutAddress + lastPosition);
+  Serial.print((String)"Init Done, base turntable address is: " + BaseTurnoutAddress + " and last turntable address is ");
+  Serial.println (BaseTurnoutAddress + lastPosition, DEC);
+  // Set up our stepper motor speeds
+  myStepper.setMaxSpeed(1000.0);
+  myStepper.setAcceleration(50.0);
+  myStepper.setSpeed(200);
 }
 
 void loop() {
+  while (Serial.available() > 0) {
+    int moveToPosition = Serial.parseInt();
+    if (Serial.read() == '\n') {
+      Serial.println((String)"Moving to position " + moveToPosition);
+      //myStepper.moveTo(steps);
+    }
+  }
+  //myStepper.run();
   // You MUST call the NmraDcc.process() method frequently from the Arduino loop() function for correct library operation
   Dcc.process();
   if( FactoryDefaultCVIndex && Dcc.isSetCVReady()) {
