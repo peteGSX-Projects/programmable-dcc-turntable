@@ -42,12 +42,6 @@ typedef struct {
 
 position_def positions[positionsAvailable];
 
-/*
-for (int i = 0; i < positionsAvailable; i++) {
-  positions[i] = (position_def){i, i + stepsPerPosition};
-}
-*/
-
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
 
@@ -142,7 +136,9 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 
 void initTurntable() {
   // Function to initialise the turntable control pins etc.
-  
+  for (int i = 0; i < positionsAvailable; i++) {
+    positions[i] = (position_def){i, stepsPerPosition};
+  }
 }
 
 void setup() {
