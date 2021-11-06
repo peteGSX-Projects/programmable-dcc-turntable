@@ -18,7 +18,7 @@ See the README for the full list of features and instructions.
 const uint8_t DccAckPin = A1;                   // Pin connected to the DCC ACK circuit
 uint16_t baseTurntableAddress;              // First turntable position address
 #define HOME_SENSOR_PIN 3                   // Pin connected to the home sensor
-#define HOME_SENSOR_ACTIVE_STATE HIGH       // State to flag when home
+#define HOME_SENSOR_ACTIVE_STATE LOW        // State to flag when home
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
