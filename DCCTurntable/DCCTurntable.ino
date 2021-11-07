@@ -15,19 +15,25 @@ See the README for the full list of features and instructions.
 
 // Define our pins etc.
 #define DCC_PIN 2                           // Pin to receive DCC signal
-const uint8_t DccAckPin = A1;                   // Pin connected to the DCC ACK circuit
+const uint8_t DccAckPin = A1;               // Pin connected to the DCC ACK circuit
 uint16_t baseTurntableAddress;              // First turntable position address
 #define HOME_SENSOR_PIN 3                   // Pin connected to the home sensor
 #define HOME_SENSOR_ACTIVE_STATE LOW        // State to flag when home
+const int maxTurntablePositions = 10;       // This much match the array elements defined later
+bool lastIsRunningState;                    // Store last running state to help disable stepper
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
+
+// Turn stepper off when not actually running
+#define DISABLE_OUTPUTS_IDLE
 
 // The lines below define the pins used to connect to the ULN2003 driver module
 const uint8_t uln2003Pin1 = 8;
 const uint8_t uln2003Pin2 = 9;
 const uint8_t uln2003Pin3 = 10;
 const uint8_t uln2003Pin4 = 11;
+const uint8_t uln2003Step = 4;        // Tells the driver to use all 4 pins for a full step
 
 // By default the stepper motor will move the shortest distance to the desired position.
 // If you need the turntable to only move in the Positive/Increasing or Negative/Decreasing step numbers to better handle backlash in the mechanism
@@ -37,14 +43,14 @@ const uint8_t uln2003Pin4 = 11;
 
 // The lines below define the stepping speed and acceleration, which you may need to tune for your application
 #define STEPPER_MAX_SPEED     800   // Sets the maximum permitted speed
-#define STEPPER_ACCELARATION  1000  // Sets the acceleration/deceleration rate
-#define STEPPER_SPEED         300   // Sets the desired constant speed for use with runSpeed()
+#define STEPPER_ACCELARATION  50  // Sets the acceleration/deceleration rate
+#define STEPPER_SPEED         200   // Sets the desired constant speed for use with runSpeed()
 
 // Define number of steps per rotation and per half rotation
-const long fullTurnSteps = 2048;
+const uint16_t fullTurnSteps = 2048;
 
 // This constant is useful to know the number of steps to rotate the turntable 180 degrees for the back entrance position
-const long halfTurnSteps = halfTurnSteps / 2;
+const uint16_t halfTurnSteps = halfTurnSteps / 2;
 
 // This structure holds the values for a turntable position with the DCC Address, Front Position in Steps from Home Sensor
 typedef struct
@@ -53,29 +59,8 @@ typedef struct
   uint16_t positionFront;
   uint16_t positionBack;
 }
-TurnoutPosition;
-
-// The constant HOME_POSITION_DCC_ADDRESS is the base DCC Accessory Decoder Address for the Home Position
-// with each subsequent position numbered sequentially from there  
-#define POSITION_01_DCC_ADDRESS 200
-
-// I decided to divide the turntable up into 10 Positions using #defines and mathc so it all scales with changes
-// to the MS1,MS2,MS3 stepping jumpers above and to make the math tidy, but you assign positions how ever you like
-#define POSITION_01 (halfTurnSteps / 10)
-
-// This array contains the Turnout Positions which can have lines added/removed to suit your turntable 
-TurnoutPosition turnoutPositions[] = {
-  {POSITION_01_DCC_ADDRESS + 0, POSITION_01 * 1, POSITION_01 * 1 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 1, POSITION_01 * 2, POSITION_01 * 2 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 2, POSITION_01 * 3, POSITION_01 * 3 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 3, POSITION_01 * 4, POSITION_01 * 4 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 4, POSITION_01 * 5, POSITION_01 * 5 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 5, POSITION_01 * 6, POSITION_01 * 6 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 6, POSITION_01 * 7, POSITION_01 * 7 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 7, POSITION_01 * 8, POSITION_01 * 8 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 8, POSITION_01 * 9, POSITION_01 * 9 + halfTurnSteps },
-  {POSITION_01_DCC_ADDRESS + 9, POSITION_01 *10, POSITION_01 *10 + halfTurnSteps },
-};
+turntablePosition;
+turntablePosition turntablePositions[maxTurntablePositions];
 
 // --------------------------------------------------------------------------------------------
 // You shouldn't need to edit anything below this line unless you're needing to make big changes... ;)
@@ -84,10 +69,8 @@ TurnoutPosition turnoutPositions[] = {
 #error ONLY uncomment one of ALWAYS_MOVE_POSITIVE or ALWAYS_MOVE_NEGATIVE but NOT both
 #endif
 
-#define MAX_TURNTABLE_POSITIONS (sizeof(turnoutPositions) / sizeof(TurnoutPosition))
-
 // Setup the AccelStepper object for the ULN2003 Stepper Motor Driver
-AccelStepper stepper1(fullTurnSteps, uln2003Pin1, uln2003Pin3, uln2003Pin2, uln2003Pin4);
+AccelStepper stepper1(uln2003Step, uln2003Pin1, uln2003Pin3, uln2003Pin2, uln2003Pin4);
 
 // Dcc Accessory Decoder object
 NmraDcc  Dcc ;
@@ -155,9 +138,9 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
   Serial.print(Direction,DEC) ;
   Serial.print(',');
   Serial.println(OutputPower, HEX) ;
-  for (int i = 0; i < MAX_TURNTABLE_POSITIONS ; i++)
+  for (int i = 0; i < maxTurntablePositions ; i++)
   {
-    if ((Addr == turnoutPositions[i].dccAddress) && ((Addr != lastAddr) || (Direction != lastDirection)) && OutputPower)
+    if ((Addr == turntablePositions[i].dccAddress) && ((Addr != lastAddr) || (Direction != lastDirection)) && OutputPower)
     {
       lastAddr = Addr ;
       lastDirection = Direction ;
@@ -169,9 +152,9 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       Serial.print(F(" @ Step: "));
       int newStep;
       if(Direction) {
-        newStep = turnoutPositions[i].positionFront;
+        newStep = turntablePositions[i].positionFront;
       } else {
-        newStep = turnoutPositions[i].positionBack;
+        newStep = turntablePositions[i].positionBack;
       }
       Serial.print(newStep, DEC);
       Serial.print(F("  Last Step: "));
@@ -202,8 +185,21 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
   }
 };
 
-void setupStepperDriver()
-{
+void initPositions() {
+  // This array contains the Turnout Positions which can have lines added/removed to suit your turntable 
+  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 10, 0 + halfTurnSteps };
+  turntablePositions[1] = (turntablePosition) {baseTurntableAddress + 1, 150, 150 + halfTurnSteps };
+  turntablePositions[2] = (turntablePosition) {baseTurntableAddress + 2, 300, 300 + halfTurnSteps };
+  turntablePositions[3] = (turntablePosition) {baseTurntableAddress + 3, 450, 450 + halfTurnSteps };
+  turntablePositions[4] = (turntablePosition) {baseTurntableAddress + 4, 600, 600 + halfTurnSteps };
+  turntablePositions[5] = (turntablePosition) {baseTurntableAddress + 5, 750, 750 + halfTurnSteps };
+  turntablePositions[6] = (turntablePosition) {baseTurntableAddress + 6, 900, 900 + halfTurnSteps };
+  turntablePositions[7] = (turntablePosition) {baseTurntableAddress + 7, 1050, 1050 + halfTurnSteps };
+  turntablePositions[8] = (turntablePosition) {baseTurntableAddress + 8, 1200, 1200 + halfTurnSteps };
+  turntablePositions[9] = (turntablePosition) {baseTurntableAddress + 9, 2000, 2000 + halfTurnSteps };
+}
+
+void setupStepperDriver() {
   stepper1.setMaxSpeed(STEPPER_MAX_SPEED);        // Sets the maximum permitted speed
   stepper1.setAcceleration(STEPPER_ACCELARATION); // Sets the acceleration/deceleration rate
   stepper1.setSpeed(STEPPER_SPEED);               // Sets the desired constant speed for use with runSpeed()
@@ -249,10 +245,8 @@ void setup() {
   while(!Serial);   // Wait for the USB Device to Enumerate
   baseTurntableAddress = (((Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_MSB) * 64) + Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_LSB) - 1) * 4) + 1  ;
   Serial.println((String)"NMRA DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
-
   Serial.print("Full Rotation Steps: ");
   Serial.println(fullTurnSteps);
-
   Serial.print("Movement Strategy: ");
 #if defined ALWAYS_MOVE_POSITIVE
   Serial.println("Positive Direction Only");
@@ -261,17 +255,19 @@ void setup() {
 #else
   Serial.println("Shortest Distance");
 #endif
-
-  for(uint8_t i = 0; i < MAX_TURNTABLE_POSITIONS; i++)
+  initPositions();
+  Serial.print("Base turntable DCC address: ");
+  Serial.println(baseTurntableAddress, DEC);
+  for(uint8_t i = 0; i < maxTurntablePositions; i++)
   {
     Serial.print("DCC Addr: ");
-    Serial.print(turnoutPositions[i].dccAddress);
+    Serial.print(turntablePositions[i].dccAddress);
 
     Serial.print(" Front: ");
-    Serial.print(turnoutPositions[i].positionFront);
+    Serial.print(turntablePositions[i].positionFront);
 
     Serial.print(" Back: ");
-    Serial.println(turnoutPositions[i].positionBack);
+    Serial.println(turntablePositions[i].positionBack);
   }
   
   setupStepperDriver();
@@ -279,7 +275,7 @@ void setup() {
     setupDCCDecoder();
 
     // Fake a DCC Packet to cause the Turntable to move to Position 1
-    notifyDccAccTurnoutOutput(POSITION_01_DCC_ADDRESS, 1, 1);
+    notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
   }
 }
 
@@ -288,7 +284,7 @@ void loop() {
     int moveToPosition = Serial.parseInt();
     if (Serial.read() == '\n') {
       Serial.println((String)"Moving to position " + moveToPosition);
-      //myStepper.moveTo(steps);
+      notifyDccAccTurnoutOutput(moveToPosition, 1, 1);
     }
   }
   // You MUST call the NmraDcc.process() method frequently from the Arduino loop() function for correct library operation
