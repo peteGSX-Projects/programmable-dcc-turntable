@@ -98,6 +98,9 @@ CVPair FactoryDefaultCVs [] =
 // Define the index in the array that holds the factory default CVs
 uint8_t FactoryDefaultCVIndex = 0;
 
+// Function to perform a software reset
+void(* resetFunc) (void) = 0;
+
 void notifyCVResetFactoryDefault()
 {
   // Make FactoryDefaultCVIndex non-zero and equal to num CV's to be reset 
@@ -307,5 +310,6 @@ void loop() {
   if ( FactoryDefaultCVIndex && Dcc.isSetCVReady()) {
     FactoryDefaultCVIndex--; // Decrement first as initially it is the size of the array 
     Dcc.setCV( FactoryDefaultCVs[FactoryDefaultCVIndex].CV, FactoryDefaultCVs[FactoryDefaultCVIndex].Value);
+    resetFunc();    // If we've had a factory reset performed, reset the Arduino to start with the new addressing.
   }
 }
