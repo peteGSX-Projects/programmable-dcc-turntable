@@ -146,8 +146,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
     if ((Addr == turntablePositions[i].dccAddress) && ((Addr != lastAddr) || (Direction != lastDirection)) && OutputPower)
     {
       lastAddr = Addr ;
-      lastDirection = Direction ;
-      
+      lastDirection = Direction ;     
       Serial.print(F("Moving to "));
       Serial.print(Direction ? F("Front") : F("Back"));
       Serial.print(F(" Position: "));
@@ -190,7 +189,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 
 void initPositions() {
   // This array contains the Turnout Positions which can have lines added/removed to suit your turntable 
-  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 10, 0 + halfTurnSteps };
+  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 10, 10 + halfTurnSteps };
   turntablePositions[1] = (turntablePosition) {baseTurntableAddress + 1, 150, 150 + halfTurnSteps };
   turntablePositions[2] = (turntablePosition) {baseTurntableAddress + 2, 300, 300 + halfTurnSteps };
   turntablePositions[3] = (turntablePosition) {baseTurntableAddress + 3, 450, 450 + halfTurnSteps };
@@ -243,10 +242,34 @@ void setupDCCDecoder() {
   Dcc.init( MAN_ID_DIY, 10, CV29_ACCESSORY_DECODER | CV29_OUTPUT_ADDRESS_MODE, 0 );
 }
 
+uint16_t getBaseAddress() {
+  // Function to retrieve the base accessory address from the EEPROM and validate it
+  // Retrieve the current values from the EEPROM
+  uint16_t cvMSB = Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_MSB);
+  uint16_t cvLSB = Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_LSB);
+  uint16_t eepromBaseTurntableAddress = (((cvMSB * 64) + cvLSB - 1) * 4) + 1  ;
+  // Validate our MSB and CSB values are valid, otherwise use default decoder address of 1
+  if ((cvMSB == 0 && cvLSB == 0) || cvMSB > 7 || cvLSB > 63) {
+    Serial.println("WARNING: The EEPROM stored CVs contain invalid MSB and/or LSB values, returning default of 1");
+    Serial.print("MSB value: ");
+    Serial.print(cvMSB);
+    Serial.print("LSB value: ");
+    Serial.println(cvLSB);
+    eepromBaseTurntableAddress = 1;
+  // Validate that this returns an actual valid DCC Decoder accessory base address here
+  } else if (eepromBaseTurntableAddress + maxTurntablePositions >= 2041) {
+    Serial.println("WARNING: The EEPROM stored CVs contain an address that would exceed the upper valid address, returning default of 1");
+    Serial.print("Upper valid address would be: ");
+    Serial.println(eepromBaseTurntableAddress + maxTurntablePositions);
+    eepromBaseTurntableAddress = 1;
+  }
+  return eepromBaseTurntableAddress;
+}
+
 void setup() {
   Serial.begin(115200);
   while(!Serial);   // Wait for the USB Device to Enumerate
-  baseTurntableAddress = (((Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_MSB) * 64) + Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_LSB) - 1) * 4) + 1  ;
+  baseTurntableAddress = getBaseAddress();
   Serial.println((String)"NMRA DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
   Serial.print("Full Rotation Steps: ");
   Serial.println(fullTurnSteps);
