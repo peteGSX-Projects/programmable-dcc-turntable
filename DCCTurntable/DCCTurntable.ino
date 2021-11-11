@@ -50,7 +50,7 @@ const uint8_t uln2003Step = 4;        // Tells the driver to use all 4 pins for 
 const uint16_t fullTurnSteps = 2048;
 
 // This constant is useful to know the number of steps to rotate the turntable 180 degrees for the back entrance position
-const uint16_t halfTurnSteps = halfTurnSteps / 2;
+const uint16_t halfTurnSteps = fullTurnSteps / 2;
 
 // This structure holds the values for a turntable position with the DCC Address, Front Position in Steps from Home Sensor
 typedef struct
@@ -146,7 +146,11 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
     if ((Addr == turntablePositions[i].dccAddress) && ((Addr != lastAddr) || (Direction != lastDirection)) && OutputPower)
     {
       lastAddr = Addr ;
-      lastDirection = Direction ;     
+      lastDirection = Direction ;
+      Serial.print("Position front/back is: ");
+      Serial.print(turntablePositions[i].positionFront);
+      Serial.print("/");
+      Serial.println(turntablePositions[i].positionBack);
       Serial.print(F("Moving to "));
       Serial.print(Direction ? F("Front") : F("Back"));
       Serial.print(F(" Position: "));
@@ -158,30 +162,30 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       } else {
         newStep = turntablePositions[i].positionBack;
       }
+      Serial.print(F("  Move: "));
+      Serial.println(newStep, DEC);
+      /* Change/revise logic below from moveTo to move, calculate steps in code
+       *  Move in whichever direction makes the move closer is the goal
+       *  Current code has motor moving anti-clockwise to the specified step position
+       */
+      stepper1.moveTo(newStep);
+      /*
       Serial.print(newStep, DEC);
       Serial.print(F("  Last Step: "));
       Serial.print(lastStep, DEC);
       int diffStep = newStep - lastStep;
       Serial.print(F("  Diff Step: "));
       Serial.print(diffStep, DEC);
-#if defined ALWAYS_MOVE_POSITIVE
-      Serial.print(F("  Positive"));       
-      if(diffStep < 0)
-        diffStep += fullTurnSteps;
-#elif defined ALWAYS_MOVE_NEGATIVE
-      Serial.print(F("  Negative"));       
-      if(diffStep > 0)
-        diffStep -= fullTurnSteps;
-#else
-      if(diffStep > halfTurnSteps)
+      if(diffStep > halfTurnSteps) {
         diffStep = diffStep - fullTurnSteps;
-      else if(diffStep < -halfTurnSteps)
+      } else if(diffStep < -halfTurnSteps) {
         diffStep = diffStep + fullTurnSteps;
-#endif
+      }
       Serial.print(F("  Move: "));
       Serial.println(diffStep, DEC);
       stepper1.move(diffStep);
       lastStep = newStep;
+      */
       break;
     }
   }
@@ -189,7 +193,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 
 void initPositions() {
   // This array contains the Turnout Positions which can have lines added/removed to suit your turntable 
-  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 10, 10 + halfTurnSteps };
+  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 0, 0 + halfTurnSteps };
   turntablePositions[1] = (turntablePosition) {baseTurntableAddress + 1, 150, 150 + halfTurnSteps };
   turntablePositions[2] = (turntablePosition) {baseTurntableAddress + 2, 300, 300 + halfTurnSteps };
   turntablePositions[3] = (turntablePosition) {baseTurntableAddress + 3, 450, 450 + halfTurnSteps };
@@ -210,11 +214,7 @@ void setupStepperDriver() {
 bool moveToHomePosition() {
   Serial.println(F("Finding Home Sensor...."));
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
-#ifdef ALWAYS_MOVE_NEGATIVE
-  stepper1.move(0 - (fullTurnSteps * 2));
-#else
   stepper1.move(fullTurnSteps * 2);
-#endif  
   while(digitalRead(HOME_SENSOR_PIN) != HOME_SENSOR_ACTIVE_STATE)
     stepper1.run();
   if(digitalRead(HOME_SENSOR_PIN) == HOME_SENSOR_ACTIVE_STATE) {
