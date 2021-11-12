@@ -160,15 +160,16 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       Serial.print(newStep);
       Serial.print(" lastStep: ");
       Serial.println(lastStep);
-      int diffStep;
+      int moveStep;
+      int diffStep = newStep - lastStep;
       Serial.print("Moving ");
       // If moving to our new position is more than half a turn, go anti-clockwise
       if ((newStep - lastStep) > halfTurnSteps) {
-        diffStep = newStep - fullTurnSteps - lastStep;
+        moveStep = newStep - fullTurnSteps - lastStep;
       //} else if ((lastStep - newStep) > halfTurnSteps) {
       //  diffStep = fullTurnSteps - lastStep - newStep;
       } else {
-        diffStep = newStep - lastStep;
+        moveStep = newStep - lastStep;
       }
       Serial.print(diffStep, DEC);
       Serial.println(" steps");
@@ -207,7 +208,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       lastStep = newStep;
       */
       lastPosition = i;
-      stepper1.move(diffStep);
+      stepper1.move(moveStep);
       break;
     }
   }
