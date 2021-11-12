@@ -80,6 +80,7 @@ DCC_MSG  Packet;
 uint16_t lastAddr = 0xFFFF ;
 uint8_t lastDirection = 0xFF;
 int     lastStep = 0;
+uint8_t lastPosition = 0;
 
 // Define the struct for CVs
 struct CVPair
@@ -141,10 +142,33 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
   Serial.print(Direction,DEC) ;
   Serial.print(',');
   Serial.println(OutputPower, HEX) ;
-  for (int i = 0; i < maxTurntablePositions ; i++)
+  for (uint8_t i = 0; i < maxTurntablePositions ; i++)
   {
     if ((Addr == turntablePositions[i].dccAddress) && ((Addr != lastAddr) || (Direction != lastDirection)) && OutputPower)
     {
+      Serial.print("Position front/back is: ");
+      Serial.print(turntablePositions[i].positionFront);
+      Serial.print("/");
+      Serial.println(turntablePositions[i].positionBack);
+      Serial.print(F("Moving to "));
+      Serial.print(Direction ? F("Front") : F("Back"));
+      Serial.print(F(" Position: "));
+      Serial.println(i, DEC);
+      uint16_t newStep = turntablePositions[i].positionFront;
+      uint16_t lastStep = turntablePositions[lastPosition].positionFront;
+      Serial.print("newStep: ");
+      Serial.print(newStep);
+      Serial.print(" lastStep: ");
+      Serial.println(lastStep);
+      uint16_t diffStep;
+      Serial.print("Moving ");
+      // If moving to our new position is more than half a turn, go anti-clockwise
+      if (newStep - lastStep > halfTurnSteps) {
+        diffStep = newStep - fullTurnSteps - lastStep;
+        Serial.print(diffStep, DEC);
+      }
+      Serial.println(" steps");
+      /*
       lastAddr = Addr ;
       lastDirection = Direction ;
       Serial.print("Position front/back is: ");
@@ -155,7 +179,6 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       Serial.print(Direction ? F("Front") : F("Back"));
       Serial.print(F(" Position: "));
       Serial.print(i, DEC);
-      Serial.print(F(" @ Step: "));
       int newStep;
       if(Direction) {
         newStep = turntablePositions[i].positionFront;
@@ -164,12 +187,6 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       }
       Serial.print(F("  Move: "));
       Serial.println(newStep, DEC);
-      /* Change/revise logic below from moveTo to move, calculate steps in code
-       *  Move in whichever direction makes the move closer is the goal
-       *  Current code has motor moving anti-clockwise to the specified step position
-       */
-      stepper1.moveTo(newStep);
-      /*
       Serial.print(newStep, DEC);
       Serial.print(F("  Last Step: "));
       Serial.print(lastStep, DEC);
@@ -183,9 +200,10 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       }
       Serial.print(F("  Move: "));
       Serial.println(diffStep, DEC);
-      stepper1.move(diffStep);
       lastStep = newStep;
       */
+      lastPosition = i;
+      stepper1.move(diffStep);
       break;
     }
   }
