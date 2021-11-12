@@ -172,9 +172,9 @@ void initPositions() {
   turntablePositions[6] = (turntablePosition) {baseTurntableAddress + 6, 900};
   turntablePositions[7] = (turntablePosition) {baseTurntableAddress + 7, 1050};
   turntablePositions[8] = (turntablePosition) {baseTurntableAddress + 8, 1200};
-  turntablePositions[9] = (turntablePosition) {baseTurntableAddress + 8, 1500};
-  turntablePositions[10] = (turntablePosition) {baseTurntableAddress + 8, 1800};
-  turntablePositions[11] = (turntablePosition) {baseTurntableAddress + 9, 2000};
+  turntablePositions[9] = (turntablePosition) {baseTurntableAddress + 9, 1500};
+  turntablePositions[10] = (turntablePosition) {baseTurntableAddress + 10, 1800};
+  turntablePositions[11] = (turntablePosition) {baseTurntableAddress + 11, 2000};
 }
 
 void setupStepperDriver() {
@@ -254,13 +254,14 @@ void setup() {
     Serial.print(turntablePositions[i].dccAddress);
 
     Serial.print(" Front: ");
-    Serial.print(turntablePositions[i].positionFront);
+    Serial.println(turntablePositions[i].positionFront);
   }
   setupStepperDriver();
   if(moveToHomePosition()) { 
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
     notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
+    stepper1.disableOutputs();
   }
 }
 
