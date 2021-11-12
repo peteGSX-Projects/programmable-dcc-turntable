@@ -42,7 +42,7 @@ const uint8_t uln2003Step = 4;        // Tells the driver to use all 4 pins for 
 //#define ALWAYS_MOVE_NEGATIVE
 
 // The lines below define the stepping speed and acceleration, which you may need to tune for your application
-#define STEPPER_MAX_SPEED     800   // Sets the maximum permitted speed
+#define STEPPER_MAX_SPEED     400   // Sets the maximum permitted speed
 #define STEPPER_ACCELARATION  50  // Sets the acceleration/deceleration rate
 #define STEPPER_SPEED         200   // Sets the desired constant speed for use with runSpeed()
 
@@ -154,19 +154,23 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       Serial.print(Direction ? F("Front") : F("Back"));
       Serial.print(F(" Position: "));
       Serial.println(i, DEC);
-      uint16_t newStep = turntablePositions[i].positionFront;
-      uint16_t lastStep = turntablePositions[lastPosition].positionFront;
+      int newStep = turntablePositions[i].positionFront;
+      int lastStep = turntablePositions[lastPosition].positionFront;
       Serial.print("newStep: ");
       Serial.print(newStep);
       Serial.print(" lastStep: ");
       Serial.println(lastStep);
-      uint16_t diffStep;
+      int diffStep;
       Serial.print("Moving ");
       // If moving to our new position is more than half a turn, go anti-clockwise
-      if (newStep - lastStep > halfTurnSteps) {
+      if ((newStep - lastStep) > halfTurnSteps) {
         diffStep = newStep - fullTurnSteps - lastStep;
-        Serial.print(diffStep, DEC);
+      //} else if ((lastStep - newStep) > halfTurnSteps) {
+      //  diffStep = fullTurnSteps - lastStep - newStep;
+      } else {
+        diffStep = newStep - lastStep;
       }
+      Serial.print(diffStep, DEC);
       Serial.println(" steps");
       /*
       lastAddr = Addr ;
