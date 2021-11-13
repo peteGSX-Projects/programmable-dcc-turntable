@@ -33,7 +33,6 @@ const uint8_t uln2003Pin1 = 8;
 const uint8_t uln2003Pin2 = 9;
 const uint8_t uln2003Pin3 = 10;
 const uint8_t uln2003Pin4 = 11;
-const uint8_t uln2003Step = 4;        // Tells the driver to use all 4 pins for a full step
 
 // The lines below define the stepping speed and acceleration, which you may need to tune for your application
 #define STEPPER_MAX_SPEED     400   // Sets the maximum permitted speed
@@ -56,7 +55,8 @@ turntablePosition;
 turntablePosition turntablePositions[maxTurntablePositions];
 
 // Setup the AccelStepper object for the ULN2003 Stepper Motor Driver
-AccelStepper stepper1(uln2003Step, uln2003Pin1, uln2003Pin3, uln2003Pin2, uln2003Pin4);
+//AccelStepper stepper1(AccelStepper::FULL4WIRE, uln2003Pin1, uln2003Pin3, uln2003Pin2, uln2003Pin4); // Counter clockwise
+AccelStepper stepper1(AccelStepper::FULL4WIRE, uln2003Pin4, uln2003Pin2, uln2003Pin3, uln2003Pin1);   // Clockwise
 
 // Dcc Accessory Decoder object
 NmraDcc  Dcc ;
@@ -129,7 +129,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
   Serial.println(OutputPower, HEX) ;
   for (uint8_t i = 0; i < maxTurntablePositions ; i++)
   {
-    if ((Addr == turntablePositions[i].dccAddress) && (Addr != lastAddr) && OutputPower) {
+    if ((Addr == turntablePositions[i].dccAddress) && (Addr != lastAddr) && OutputPower && stepper1.isRunning() == false) {
       Serial.print("Position is: ");
       Serial.println(turntablePositions[i].positionFront);
       Serial.print(F("Moving to "));
