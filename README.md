@@ -1,39 +1,61 @@
 # Arduino DCC Turntable Controller
 This repository contains the code for an Arduino based turntable controller utilising a ULN2003 stepper motor controller and 28BYJ-48 stepper motor.
 
+The turntable is driven by DCC commands according to the NMRA standards and, as such, requires an external DCC decoder interface circuit.
+
+The DCC CVs can be programmed as per a normal DCC accessory decoder, and the code is written to provide the DCC ACK signal when programming.
+
+The code complies with the NMRA turnout direction standard so that 1 = Closed, and 0 = Thrown.
+
 # Instructions
 
-Rokuhan points require a very brief pulse to switch the points direction only, and continuous current will burn the switch motor out. This code has been written to cater for this.
+The 28BYJ-48 is an inexpensive unipolar stepper motor used in many consumer devices and is an ideal candidate for a small scale turntable. The motor is driven by the ULN2003 controller using 4 pins as outputs from the Arduino in full step mode.
 
-The input voltage to the circuit should be set to 8V, meaning the same power source can be used to power both the Arduino itself as well as providing the switching voltage.
+The full step pin driving order is 1, 3, 2, 4 to drive anti-clockwise, and 4, 2, 3, 1 to drive clockwise.
 
-Digital Command Control (DCC) is used to trigger the points changes by inverting the direction setting and setting the speed to max momentarily to trigger the change in direction.
+A hall effect sensor is combined with a magnet attached to one end of the turntable bridge to detect the home position in order to maintain calibration and alignment with the various track positions.
+
+## Track positions
+
+Track positions are defined as an array containing one or more C++ struct items to define the DCC address and steps from 0.
+
+To configure turntable positions, the constant "maxTurntablePositions" (A) must be updated to reflect the total number of positions.
+
+Once this is defined, each position requires an entry in the "turntablePositions" array as outlined below, numbered from 0 to the number of items minus one (X), with the number of steps from the home position (Y).
+
+So, if there are 10 turntable positions to be defined, A = 10, and the positions are entered as turntablePositions[0] through turntablePositions[0], with the appropriate steps listed for each position (Y).
+
+Code requiring modification:
+```
+const int maxTurntablePositions = A;
+
+turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, Y};
+...
+turntablePositions[X] = (turntablePosition) {baseTurntableAddress + X, Y};
+```
+
+Example for 4 positions:
+```
+const int maxTurntablePositions = 4;
+
+turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 0};
+turntablePositions[1] = (turntablePosition) {baseTurntableAddress + 1, 500};
+turntablePositions[2] = (turntablePosition) {baseTurntableAddress + 2, 1000};
+turntablePositions[3] = (turntablePosition) {baseTurntableAddress + 3, 2000};
+```
 
 # Arduino pins
 The code uses the pins below for the various functions.
 
 ## DCC pins
+- D2 - Interrupt pin (input) used for decoding the DCC commands
+- D3 - Output used for the sending the DCC ACK signal when programming
 
-- D2 - Interrupt pin used for DCC decoding
-- D3 - Used for the DCC ACK signal
+## Home sensing pin
+- D4 - Input used for the hall effect sensor to detect the home position
 
-## Point 1 pins - connect to first L293D
-- A0 - Switch button
-- A4 - L293D input 1 - HIGH for through, LOW for branch
-- A5 - L293D input 2 - LOW for through, HIGH for branch
-- D5 - L293D enable 1 - set to max speed PWM 255 for 25ms to switch
-
-## Point 2 pins - connect to first L293D
-- D4 - L293D input 3 - HIGH for through, LOW for branch
-- D7 - L293D input 4 - LOW for through, HIGH for branch
-- D6 - L293D enable 2 - set to max speed PWM 255 for 25ms to switch
-
-## Point 3 pins - connect to second L293D
-- D8 - L293D input 1 - HIGH for through, LOW for branch
-- D11 - L293D input 2 - LOW for through, HIGH for branch
-- D9 - L293D enable 1 - set to max speed PWM 255 for 25ms to switch
-
-## Point 4 pins - connect to second L293D
-- D12 - L293D input 3 - HIGH for through, LOW for branch
-- D13 - L293D input 4 - LOW for through, HIGH for branch
-- D10 - L293D enable 2 - set to max speed PWM 255 for 25ms to switch
+## ULN2003 pins
+- D8  - ULN2003 IN1
+- D9  - ULN2003 IN2
+- D10 - ULN2003 IN3
+- D11 - ULN2003 IN4
