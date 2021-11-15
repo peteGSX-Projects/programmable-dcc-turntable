@@ -19,19 +19,19 @@ A hall effect sensor is combined with a magnet attached to one end of the turnta
 
 Track positions are defined as an array containing one or more C++ struct items to define the DCC address and steps from 0.
 
-To configure turntable positions, the constant "maxTurntablePositions" (A) must be updated to reflect the total number of positions.
+To configure turntable positions, the constant "maxTurntablePositions" (X) must be updated to reflect the total number of positions.
 
-Once this is defined, each position requires an entry in the "turntablePositions" array as outlined below, numbered from 0 to the number of items minus one (X), with the number of steps from the home position (Y).
+Once this is defined, each position requires an entry in the "turntablePositions" array as outlined below, numbered from 0 to the number of items minus one (X - 1), with the number of steps from the home position (Y).
 
-So, if there are 10 turntable positions to be defined, A = 10, and the positions are entered as turntablePositions[0] through turntablePositions[0], with the appropriate steps listed for each position (Y).
+So, if there are 10 turntable positions to be defined, X = 10, and the positions are entered as turntablePositions[0] through turntablePositions[X - 1], with the appropriate steps listed for each position (Y).
 
 Code requiring modification:
 ```
-const int maxTurntablePositions = A;
+const int maxTurntablePositions = X;
 
 turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, Y};
 ...
-turntablePositions[X] = (turntablePosition) {baseTurntableAddress + X, Y};
+turntablePositions[X - 1] = (turntablePosition) {baseTurntableAddress + X - 1, Y};
 ```
 
 Example for 4 positions:
