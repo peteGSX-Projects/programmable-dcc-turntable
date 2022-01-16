@@ -1,4 +1,6 @@
 # Arduino DCC Turntable Controller
+**Important note:** This code is actively under development, use at your own peril! It is heavily based on the "DCCInterface_TurntableControl" example by Alex Shepherd included with the NmraDCC library, adapted to suit the ULN2003 stepper controller and my need for automatic polarity reversal of the bridge track.
+
 This repository contains the code for an Arduino based turntable controller utilising a ULN2003 stepper motor controller and 28BYJ-48 stepper motor.
 
 The turntable is driven by DCC commands according to the NMRA standards and, as such, requires an external DCC decoder interface circuit.
@@ -6,6 +8,8 @@ The turntable is driven by DCC commands according to the NMRA standards and, as 
 The DCC CVs can be programmed as per a normal DCC accessory decoder, and the code is written to provide the DCC ACK signal when programming.
 
 The code complies with the NMRA turnout direction standard so that 1 = Closed, and 0 = Thrown.
+
+In addition, the bridge track polarity is able to be switched via a generic Arduino dual relay board to avoid needing to use an auto-reverser.
 
 # Instructions
 
