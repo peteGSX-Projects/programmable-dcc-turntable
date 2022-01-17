@@ -261,13 +261,14 @@ void setPolarity(uint8_t Polarity) {
 void setup() {
   Serial.begin(115200);
   while(!Serial);   // Wait for the USB Device to Enumerate
-  baseTurntableAddress = getBaseAddress();
+  baseTurntableAddress = getBaseAddress();  // Get our base DCC address
+  initPositions();  // Initialise our array of positions
+  pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
+  pinMode(RELAY2, OUTPUT);
+  
   Serial.println((String)"NMRA DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
   Serial.print("Full Rotation Steps: ");
   Serial.println(fullTurnSteps);
-  initPositions();
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
   Serial.print("Base turntable DCC address: ");
   Serial.println(baseTurntableAddress, DEC);
   for(uint8_t i = 0; i < maxTurntablePositions; i++)
@@ -278,7 +279,8 @@ void setup() {
     Serial.print(" Front: ");
     Serial.println(turntablePositions[i].positionFront);
   }
-  setupStepperDriver();
+  
+  setupStepperDriver(); // Initialise the stepper driver
   if(moveToHomePosition()) { 
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
@@ -288,6 +290,7 @@ void setup() {
 }
 
 void loop() {
+  // Look for serial input for testing without DCC signal  
   while (Serial.available() > 0) {
     int moveToPosition = Serial.parseInt();
     if (Serial.read() == '\n') {
@@ -302,6 +305,7 @@ void loop() {
   // Process the Stepper Library
   stepper1.run();
 
+  // If we've enabled it, disable stepper motor when not actively turning
 #ifdef DISABLE_OUTPUTS_IDLE
   if(stepper1.isRunning() != lastIsRunningState)
   {
@@ -313,6 +317,7 @@ void loop() {
     }
   }
 #endif
+  // If we flagged a DCC reset, do it
   if ( FactoryDefaultCVIndex && Dcc.isSetCVReady()) {
     FactoryDefaultCVIndex--; // Decrement first as initially it is the size of the array 
     Dcc.setCV( FactoryDefaultCVs[FactoryDefaultCVIndex].CV, FactoryDefaultCVs[FactoryDefaultCVIndex].Value);
