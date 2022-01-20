@@ -15,6 +15,11 @@ Much credit to Alex Shepherd for the example DCC turntable sketch provided with
 the NrmaDcc library.
 
 See the README for the full list of features and instructions.
+
+New logic:
+- CV 513 stores number of turntable positions
+- CVs for steps and polarity is 513 + offset
+- 
 *************************************************************/
 
 #include <AccelStepper.h>
@@ -281,12 +286,12 @@ void setup() {
   }
   
   setupStepperDriver(); // Initialise the stepper driver
-  if(moveToHomePosition()) { 
+  //if(moveToHomePosition()) { NEED TO ADD THIS BACK IN, DISABLED JUST FOR EXPERIMENTATION
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
     notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
     stepper1.disableOutputs();
-  }
+  //}
 }
 
 void loop() {
