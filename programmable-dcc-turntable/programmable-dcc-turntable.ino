@@ -19,7 +19,8 @@ See the README for the full list of features and instructions.
 New logic:
 - CV 513 stores number of turntable positions
 - CVs for steps and polarity is 513 + offset
-- 
+- Valid values for steps are 1 to fullTurnSteps
+- Valid values for polarity are 0 or 1
 *************************************************************/
 
 #include <AccelStepper.h>
@@ -39,8 +40,10 @@ New logic:
 // Define global variables
 uint16_t baseTurntableAddress;              // First turntable position address
 #define HOME_SENSOR_ACTIVE_STATE LOW        // State to flag when home
-const int maxTurntablePositions = 12;       // This much match the array elements defined later
+int numTurntablePositions = 1;              // Placeholder assignment of 1 until retrieved from CV
+const int maxTurntablePositions = 50;       // Define a sane limit of positions
 bool lastIsRunningState;                    // Store last running state to help disable stepper
+const uint16_t numPositionsCV = 513;        // CV number to store the number of turntable positions in
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
@@ -49,14 +52,14 @@ bool lastIsRunningState;                    // Store last running state to help 
 #define DISABLE_OUTPUTS_IDLE
 
 // The lines below define the stepping speed and acceleration, which you may need to tune for your application
-#define STEPPER_MAX_SPEED     400   // Sets the maximum permitted speed
-#define STEPPER_ACCELARATION  50  // Sets the acceleration/deceleration rate
-#define STEPPER_SPEED         200   // Sets the desired constant speed for use with runSpeed()
+#define STEPPER_MAX_SPEED     100   // Sets the maximum permitted speed
+#define STEPPER_ACCELARATION  25  // Sets the acceleration/deceleration rate
+#define STEPPER_SPEED         100   // Sets the desired constant speed for use with runSpeed()
 
 // Define number of steps per rotation and per half rotation
 const int16_t fullTurnSteps = 2048;
 
-// This constant is useful to know the number of steps to rotate the turntable 180 degrees for the back entrance position
+// This constant is useful to know the number of steps to rotate the turntable in the direction requiring least travel
 const int16_t halfTurnSteps = fullTurnSteps / 2;
 
 // This structure holds the values for a turntable position with:
@@ -139,15 +142,18 @@ void notifyDccMsg( DCC_MSG * Msg) {
 // This function is called whenever a normal DCC Turnout Packet is received
 void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t OutputPower )
 {
+  /*
   Serial.print(F("notifyDccAccTurnoutOutput: "));
   Serial.print(Addr,DEC) ;
   Serial.print(',');
   Serial.print(Direction,DEC) ;
   Serial.print(',');
   Serial.println(OutputPower, HEX) ;
-  for (uint8_t i = 0; i < maxTurntablePositions ; i++)
+  */
+  for (uint8_t i = 0; i < numTurntablePositions ; i++)
   {
     if ((Addr == turntablePositions[i].dccAddress) && (Addr != lastAddr) && OutputPower && stepper1.isRunning() == false) {
+      Serial.println("Received valid DCC notification");
       Serial.print("Position is: ");
       Serial.println(turntablePositions[i].positionFront);
       Serial.print(F("Moving to "));
@@ -181,19 +187,33 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 };
 
 void initPositions() {
-  // This array contains the Turnout Positions which can have lines added/removed to suit your turntable 
-  turntablePositions[0] = (turntablePosition) {baseTurntableAddress + 0, 0, 0};
-  turntablePositions[1] = (turntablePosition) {baseTurntableAddress + 1, 150, 0};
-  turntablePositions[2] = (turntablePosition) {baseTurntableAddress + 2, 300, 0};
-  turntablePositions[3] = (turntablePosition) {baseTurntableAddress + 3, 450, 0};
-  turntablePositions[4] = (turntablePosition) {baseTurntableAddress + 4, 600, 0};
-  turntablePositions[5] = (turntablePosition) {baseTurntableAddress + 5, 750, 1};
-  turntablePositions[6] = (turntablePosition) {baseTurntableAddress + 6, 900, 1};
-  turntablePositions[7] = (turntablePosition) {baseTurntableAddress + 7, 1050, 1};
-  turntablePositions[8] = (turntablePosition) {baseTurntableAddress + 8, 1200, 1};
-  turntablePositions[9] = (turntablePosition) {baseTurntableAddress + 9, 1500, 1};
-  turntablePositions[10] = (turntablePosition) {baseTurntableAddress + 10, 1800, 1};
-  turntablePositions[11] = (turntablePosition) {baseTurntableAddress + 11, 2000, 1};
+  // Function to retrive the position definitions from the CVs and initialise the array
+  uint16_t cvPositions = Dcc.getCV(numPositionsCV);
+  if (cvPositions > 0 && cvPositions <= maxTurntablePositions) {
+    numTurntablePositions = cvPositions;
+    Serial.print("Turntable has ");
+    Serial.print(numTurntablePositions);
+    Serial.println(" positions defined");
+    for(uint8_t i = 0; i < numTurntablePositions; i++) {
+      Serial.println((String)"Getting steps and polarity for turntable position " + i);
+      uint16_t stepsLSBCV = numPositionsCV + (i * 3) + 1;
+      uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
+      Serial.println((String)"CV " + stepsLSBCV + " =" + stepsLSB);
+      uint16_t stepsMSBCV = numPositionsCV + (i * 3) + 2;
+      uint8_t stepsMSB = Dcc.getCV(stepsMSBCV);
+      Serial.println((String)"CV " + stepsMSBCV + " =" + stepsMSB);
+      uint16_t polarityCV = numPositionsCV + (i * 3) + 3;
+      uint8_t polarity = Dcc.getCV(polarityCV);
+      Serial.println((String)"CV " + polarityCV + " =" + polarity);
+      uint16_t steps = (stepsMSB << 8) + stepsLSB;
+      Serial.println((String)"Calculated to " + steps);
+      turntablePositions[i] = (turntablePosition) {baseTurntableAddress + i, steps, polarity};
+    }
+  } else {
+    Serial.print("Defined number of turntable positions ");
+    Serial.print(cvPositions);
+    Serial.println(" is invalid");
+  }
 }
 
 void setupStepperDriver() {
@@ -248,10 +268,10 @@ uint16_t getBaseAddress() {
     Serial.println(cvLSB);
     eepromBaseTurntableAddress = 1;
   // Validate that this returns an actual valid DCC Decoder accessory base address here
-  } else if (eepromBaseTurntableAddress + maxTurntablePositions >= 2041) {
+  } else if (eepromBaseTurntableAddress + numTurntablePositions >= 2041) {
     Serial.println("WARNING: The EEPROM stored CVs contain an address that would exceed the upper valid address, returning default of 1");
     Serial.print("Upper valid address would be: ");
-    Serial.println(eepromBaseTurntableAddress + maxTurntablePositions);
+    Serial.println(eepromBaseTurntableAddress + numTurntablePositions);
     eepromBaseTurntableAddress = 1;
   }
   return eepromBaseTurntableAddress;
@@ -276,7 +296,7 @@ void setup() {
   Serial.println(fullTurnSteps);
   Serial.print("Base turntable DCC address: ");
   Serial.println(baseTurntableAddress, DEC);
-  for(uint8_t i = 0; i < maxTurntablePositions; i++)
+  for(uint8_t i = 0; i < numTurntablePositions; i++)
   {
     Serial.print("DCC Addr: ");
     Serial.print(turntablePositions[i].dccAddress);
@@ -286,12 +306,12 @@ void setup() {
   }
   
   setupStepperDriver(); // Initialise the stepper driver
-  //if(moveToHomePosition()) { NEED TO ADD THIS BACK IN, DISABLED JUST FOR EXPERIMENTATION
+  if(moveToHomePosition()) {
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
     notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
     stepper1.disableOutputs();
-  //}
+  }
 }
 
 void loop() {
