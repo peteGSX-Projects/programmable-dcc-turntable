@@ -69,7 +69,7 @@ const int16_t halfTurnSteps = fullTurnSteps / 2;
 typedef struct
 {
   uint16_t dccAddress;
-  uint16_t positionFront;
+  uint16_t positionSteps;
   uint8_t polarity;
 }
 turntablePosition;
@@ -84,9 +84,9 @@ NmraDcc  Dcc ;
 DCC_MSG  Packet;
 
 // Variables to store the last DCC Turnout message Address and Direction  
-uint16_t lastAddr = 0xFFFF ;
-int     lastStep = 0;
-uint8_t lastPosition = 0;
+uint16_t lastAddr = 0xFFFF;
+uint16_t lastStep = 0;
+int8_t lastPosition = -1;
 
 // Define the struct for CVs
 struct CVPair
@@ -142,32 +142,23 @@ void notifyDccMsg( DCC_MSG * Msg) {
 // This function is called whenever a normal DCC Turnout Packet is received
 void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t OutputPower )
 {
-  /*
-  Serial.print(F("notifyDccAccTurnoutOutput: "));
-  Serial.print(Addr,DEC) ;
-  Serial.print(',');
-  Serial.print(Direction,DEC) ;
-  Serial.print(',');
-  Serial.println(OutputPower, HEX) ;
-  */
   for (uint8_t i = 0; i < numTurntablePositions ; i++)
   {
     if ((Addr == turntablePositions[i].dccAddress) && (Addr != lastAddr) && OutputPower && stepper1.isRunning() == false) {
-      Serial.println("Received valid DCC notification");
-      Serial.print("Position is: ");
-      Serial.println(turntablePositions[i].positionFront);
-      Serial.print(F("Moving to "));
-      Serial.print(Direction ? F("Front") : F("Back"));
-      Serial.print(F(" Position: "));
-      Serial.println(i, DEC);
-      int newStep = turntablePositions[i].positionFront;
-      int lastStep = turntablePositions[lastPosition].positionFront;
-      Serial.print("newStep: ");
-      Serial.print(newStep);
-      Serial.print(" lastStep: ");
-      Serial.println(lastStep);
+      Serial.print((String)"Valid DCC address notification " + Addr + " - ");
+      Serial.print((String)"Position steps: " + turntablePositions[i].positionSteps);
+      Serial.println((String)", Polarity flag is: " + turntablePositions[i].polarity);
+      int newStep = turntablePositions[i].positionSteps;
+      int lastStep;
+      if (lastPosition == -1) {
+        lastStep = 0;
+      } else {
+        lastStep = turntablePositions[lastPosition].positionSteps;
+      }
+      Serial.print((String)"newStep: " + newStep);
+      Serial.print(", lastStep: " + lastStep);
       int moveStep;
-      Serial.print("Moving ");
+      Serial.print(", Moving ");
       // If moving to our new position is more than half a turn, go anti-clockwise
       if ((newStep - lastStep) > halfTurnSteps) {
         moveStep = newStep - fullTurnSteps - lastStep;
@@ -184,6 +175,11 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       break;
     }
   }
+  if (Addr == baseTurntableAddress + numTurntablePositions) {
+    // If we've received a DCC notification for one address above the turntable positions, flag to reset
+    // This is used to allow a reset via DCC after programming activities are done
+    resetFunc();
+  }
 };
 
 void initPositions() {
@@ -191,23 +187,25 @@ void initPositions() {
   uint16_t cvPositions = Dcc.getCV(numPositionsCV);
   if (cvPositions > 0 && cvPositions <= maxTurntablePositions) {
     numTurntablePositions = cvPositions;
-    Serial.print("Turntable has ");
-    Serial.print(numTurntablePositions);
-    Serial.println(" positions defined");
     for(uint8_t i = 0; i < numTurntablePositions; i++) {
-      Serial.println((String)"Getting steps and polarity for turntable position " + i);
       uint16_t stepsLSBCV = numPositionsCV + (i * 3) + 1;
       uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
-      Serial.println((String)"CV " + stepsLSBCV + " =" + stepsLSB);
       uint16_t stepsMSBCV = numPositionsCV + (i * 3) + 2;
       uint8_t stepsMSB = Dcc.getCV(stepsMSBCV);
-      Serial.println((String)"CV " + stepsMSBCV + " =" + stepsMSB);
       uint16_t polarityCV = numPositionsCV + (i * 3) + 3;
       uint8_t polarity = Dcc.getCV(polarityCV);
-      Serial.println((String)"CV " + polarityCV + " =" + polarity);
       uint16_t steps = (stepsMSB << 8) + stepsLSB;
-      Serial.println((String)"Calculated to " + steps);
-      turntablePositions[i] = (turntablePosition) {baseTurntableAddress + i, steps, polarity};
+      if (steps <= fullTurnSteps && polarity < 2) {
+        turntablePositions[i] = (turntablePosition) {baseTurntableAddress + i, steps, polarity};
+      } else {
+        if (steps > fullTurnSteps) {
+          Serial.println((String)"ERROR: Defined position in steps exceeds maximum of " + fullTurnSteps);
+          Serial.println((String)"Index " + i + " MSB CV " + stepsMSBCV + ":" + stepsMSB + " LSB CV " + stepsLSBCV + ":" + stepsLSB);
+        }
+        if (polarity > 1) {
+          Serial.println((String)"ERROR: Defined polarity of " + polarity + " is invalid, must be 0 or 1");
+        }
+      }
     }
   } else {
     Serial.print("Defined number of turntable positions ");
@@ -223,7 +221,6 @@ void setupStepperDriver() {
 }
 
 bool moveToHomePosition() {
-  Serial.println(F("Finding Home Sensor...."));
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
   stepper1.move(fullTurnSteps * 2);
   while(digitalRead(HOME_SENSOR_PIN) != HOME_SENSOR_ACTIVE_STATE)
@@ -240,7 +237,6 @@ bool moveToHomePosition() {
 }
 
 void setupDCCDecoder() {
-  Serial.println("Setting up DCC Decorder...");
   // Setup which External Interrupt, the Pin it's associated with that we're using and enable the Pull-Up
   // Many Arduino Cores now support the digitalPinToInterrupt() function that makes it easier to figure out the
   // Interrupt Number for the Arduino Pin number, which reduces confusion. 
@@ -261,7 +257,7 @@ uint16_t getBaseAddress() {
   uint16_t eepromBaseTurntableAddress = (((cvMSB * 64) + cvLSB - 1) * 4) + 1  ;
   // Validate our MSB and CSB values are valid, otherwise use default decoder address of 1
   if ((cvMSB == 0 && cvLSB == 0) || cvMSB > 7 || cvLSB > 63) {
-    Serial.println("WARNING: The EEPROM stored CVs contain invalid MSB and/or LSB values, returning default of 1");
+    Serial.println("WARNING: The EEPROM stored address CVs contain invalid MSB and/or LSB values, returning default of 1");
     Serial.print("MSB value: ");
     Serial.print(cvMSB);
     Serial.print(" LSB value: ");
@@ -286,50 +282,34 @@ void setPolarity(uint8_t Polarity) {
 void setup() {
   Serial.begin(115200);
   while(!Serial);   // Wait for the USB Device to Enumerate
+  Serial.println((String)"Programmable DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
+  Serial.println((String)"Full Rotation Steps: " + fullTurnSteps);
   baseTurntableAddress = getBaseAddress();  // Get our base DCC address
   initPositions();  // Initialise our array of positions
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
-  
-  Serial.println((String)"NMRA DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
-  Serial.print("Full Rotation Steps: ");
-  Serial.println(fullTurnSteps);
-  Serial.print("Base turntable DCC address: ");
-  Serial.println(baseTurntableAddress, DEC);
   for(uint8_t i = 0; i < numTurntablePositions; i++)
   {
-    Serial.print("DCC Addr: ");
-    Serial.print(turntablePositions[i].dccAddress);
-
-    Serial.print(" Front: ");
-    Serial.println(turntablePositions[i].positionFront);
+    Serial.print((String)"DCC Addr " + turntablePositions[i].dccAddress);
+    Serial.print((String)" - Steps: "+turntablePositions[i].positionSteps);
+    Serial.println((String)" Polarity: "+turntablePositions[i].polarity);
   }
-  
   setupStepperDriver(); // Initialise the stepper driver
   if(moveToHomePosition()) {
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
     notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
-    stepper1.disableOutputs();
+    #ifdef DISABLE_OUTPUTS_IDLE
+      stepper1.disableOutputs();
+    #endif
   }
 }
 
 void loop() {
-  // Look for serial input for testing without DCC signal  
-  while (Serial.available() > 0) {
-    int moveToPosition = Serial.parseInt();
-    if (Serial.read() == '\n') {
-      Serial.println((String)"Moving to position " + moveToPosition);
-      notifyDccAccTurnoutOutput(moveToPosition, 1, 1);
-    }
-  }
-
   // You MUST call the NmraDcc.process() method frequently from the Arduino loop() function for correct library operation
   Dcc.process();
-
   // Process the Stepper Library
   stepper1.run();
-
   // If we've enabled it, disable stepper motor when not actively turning
 #ifdef DISABLE_OUTPUTS_IDLE
   if(stepper1.isRunning() != lastIsRunningState)
@@ -338,7 +318,6 @@ void loop() {
     if(!lastIsRunningState)
     {
       stepper1.disableOutputs();
-      Serial.println("Disable Stepper Outputs");
     }
   }
 #endif
