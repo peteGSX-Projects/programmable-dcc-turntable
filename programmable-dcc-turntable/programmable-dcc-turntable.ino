@@ -21,6 +21,7 @@ See the README for the full list of features and instructions.
 
 #include <AccelStepper.h>
 #include <NmraDcc.h>
+#include <avr/wdt.h>
 
 // Define our pins
 #define DCC_PIN 2                           // Pin to receive DCC signal
@@ -40,6 +41,10 @@ uint16_t baseTurntableAddress;              // First turntable position address
 //const int maxTurntablePositions = 50;       // Define a sane limit of positions
 bool lastIsRunningState;                    // Store last running state to help disable stepper
 const uint16_t numPositionsCV = 513;        // CV number to store the number of turntable positions in
+int16_t lastStep = 0;                       // Record of the last step position moved to
+const int16_t fullTurnSteps = 2048;         // Define steps for a full turn
+const int16_t halfTurnSteps = fullTurnSteps / 2; // Define steps for a half turn, used to move least distance
+uint16_t lastAddr = 0xFFFF;                 // Record of the last DCC addressed received
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
@@ -52,27 +57,6 @@ const uint16_t numPositionsCV = 513;        // CV number to store the number of 
 #define STEPPER_ACCELARATION  25  // Sets the acceleration/deceleration rate
 #define STEPPER_SPEED         100   // Sets the desired constant speed for use with runSpeed()
 
-// Define number of steps per rotation and per half rotation
-const int16_t fullTurnSteps = 2048;
-
-// This constant is useful to know the number of steps to rotate the turntable in the direction requiring least travel
-const int16_t halfTurnSteps = fullTurnSteps / 2;
-
-/*
-// This structure holds the values for a turntable position with:
-// - DCC Address
-// - Position in Steps from Home Sensor
-// - Polarity (0 = normal, 1 reversed)
-typedef struct
-{
-  uint16_t dccAddress;
-  uint16_t positionSteps;
-  uint8_t polarity;
-}
-turntablePosition;
-turntablePosition turntablePositions[maxTurntablePositions];
-*/
-
 // Setup the AccelStepper object for the ULN2003 Stepper Motor Driver
 //AccelStepper stepper1(AccelStepper::FULL4WIRE, ULN2003_PIN1, ULN2003_PIN3, ULN2003_PIN2, ULN2003_PIN4); // Counter clockwise
 AccelStepper stepper1(AccelStepper::FULL4WIRE, ULN2003_PIN4, ULN2003_PIN2, ULN2003_PIN3, ULN2003_PIN1);   // Clockwise
@@ -80,11 +64,6 @@ AccelStepper stepper1(AccelStepper::FULL4WIRE, ULN2003_PIN4, ULN2003_PIN2, ULN20
 // Dcc Accessory Decoder object
 NmraDcc  Dcc ;
 DCC_MSG  Packet;
-
-// Variables to store the last DCC Turnout message Address and Direction  
-//uint16_t lastAddr = 0xFFFF;
-uint16_t lastStep = 0;
-//int8_t lastPosition = -1;
 
 // Define the struct for CVs
 struct CVPair
@@ -103,8 +82,11 @@ CVPair FactoryDefaultCVs [] =
 // Define the index in the array that holds the factory default CVs
 uint8_t FactoryDefaultCVIndex = 0;
 
-// Function to perform a software reset
-void(* resetFunc) (void) = 0;
+void resetFunc() {
+  // Function to perform a software reset courtesy of the DCC++ EX team
+  wdt_enable (WDTO_15MS);       // set Arduino watchdog timer for 15ms 
+  delay(50);                    // wait for the prescaler time to expire          
+}
 
 void notifyCVResetFactoryDefault()
 {
@@ -140,7 +122,8 @@ void notifyDccMsg( DCC_MSG * Msg) {
 // This function is called whenever a normal DCC Turnout Packet is received
 void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t OutputPower )
 {
-  if (Addr == baseTurntableAddress || (Addr > baseTurntableAddress && Addr < baseTurntableAddress + Dcc.getCV(numPositionsCV))) {
+  if ((Addr == baseTurntableAddress || (Addr > baseTurntableAddress && Addr < baseTurntableAddress + Dcc.getCV(numPositionsCV))) && OutputPower && stepper1.isRunning() == false && Addr != lastAddr) {
+    lastAddr = Addr;
     uint8_t cvOffset = Addr - baseTurntableAddress;
     uint16_t stepsLSBCV = numPositionsCV + (cvOffset * 3) + 1;
     uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
@@ -148,54 +131,34 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
     uint8_t stepsMSB = Dcc.getCV(stepsMSBCV);
     uint16_t polarityCV = numPositionsCV + (cvOffset * 3) + 3;
     uint8_t polarity = Dcc.getCV(polarityCV);
-    uint16_t steps = (stepsMSB << 8) + stepsLSB;
-  }
-  /*
-  for (uint8_t i = 0; i < numTurntablePositions ; i++)
-  {
-    if ((Addr == turntablePositions[i].dccAddress) && (Addr != lastAddr) && OutputPower && stepper1.isRunning() == false) {
-      Serial.print((String)"Valid DCC address notification " + Addr + " - ");
-      Serial.print((String)"Position steps: " + turntablePositions[i].positionSteps);
-      Serial.println((String)", Polarity flag is: " + turntablePositions[i].polarity);
-      int newStep = turntablePositions[i].positionSteps;
-      int lastStep;
-      if (lastPosition == -1) {
-        lastStep = 0;
+    int16_t steps = (stepsMSB << 8) + stepsLSB;
+    if (steps <= fullTurnSteps && polarity < 2) {
+      int16_t moveSteps;
+      Serial.print((String)"Notification to " + Addr + ": ");
+      Serial.print((String)"Position steps: " + steps + ", Polarity flag: " + polarity);
+      if ((steps - lastStep) > halfTurnSteps) {
+        moveSteps = steps - fullTurnSteps - lastStep;
+      } else if ((steps - lastStep) < -halfTurnSteps) {
+        moveSteps = fullTurnSteps - lastStep + steps;
       } else {
-        lastStep = turntablePositions[lastPosition].positionSteps;
+        moveSteps = steps - lastStep;
       }
-      Serial.print((String)"newStep: " + newStep);
-      Serial.print(", lastStep: " + lastStep);
-      int moveStep;
-      Serial.print(", Moving ");
-      // If moving to our new position is more than half a turn, go anti-clockwise
-      if ((newStep - lastStep) > halfTurnSteps) {
-        moveStep = newStep - fullTurnSteps - lastStep;
-      } else if ((newStep - lastStep) < -halfTurnSteps) {
-        moveStep = fullTurnSteps - lastStep + newStep;
-      } else {
-        moveStep = newStep - lastStep;
-      }
-      Serial.print(moveStep, DEC);
-      Serial.println(" steps");
-      lastPosition = i;
-      setPolarity(turntablePositions[i].polarity);
-      stepper1.move(moveStep);
-      break;
+      Serial.println((String)" - moving " + moveSteps + " steps");
+      setPolarity(polarity);
+      lastStep = steps;
+      stepper1.move(moveSteps);
+    } else {
+      Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
     }
   }
-  if (Addr == baseTurntableAddress + numTurntablePositions) {
-    // If we've received a DCC notification for one address above the turntable positions, flag to reset
-    // This is used to allow a reset via DCC after programming activities are done
-    resetFunc();
-  }
-  */
 };
 
 void printPositions() {
   Serial.println((String)Dcc.getCV(numPositionsCV) + " turntable positions defined:");
   for (uint8_t i = 0; i < Dcc.getCV(numPositionsCV); i++) {
-    uint16_t dccAddr = baseTurntableAddress + i;
+    Serial.print("DCC addr ");
+    Serial.print(baseTurntableAddress + i, DEC);
+    Serial.print(" definition: ");
     uint16_t stepsLSBCV = numPositionsCV + (i * 3) + 1;
     uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
     uint16_t stepsMSBCV = numPositionsCV + (i * 3) + 2;
@@ -209,46 +172,11 @@ void printPositions() {
     if (polarity > 1) {
       Serial.println("ERROR! Polarity must be 0 or 1");
     }
-    Serial.print((String)"DCC addr " + dccAddr + " definition: ");
     Serial.print((String)steps + " steps (LSB CV " + stepsLSBCV + "=" + stepsLSB);
     Serial.print((String)", MSB CV " + stepsMSBCV + "=" + stepsMSB);
     Serial.println((String)") with polarity flag " + polarity + " (CV " + polarityCV + ")");
   }
 }
-
-/*
-void initPositions() {
-  // Function to retrive the position definitions from the CVs and initialise the array
-  uint16_t cvPositions = Dcc.getCV(numPositionsCV);
-  if (cvPositions > 0 && cvPositions <= maxTurntablePositions) {
-    numTurntablePositions = cvPositions;
-    for(uint8_t i = 0; i < numTurntablePositions; i++) {
-      uint16_t stepsLSBCV = numPositionsCV + (i * 3) + 1;
-      uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
-      uint16_t stepsMSBCV = numPositionsCV + (i * 3) + 2;
-      uint8_t stepsMSB = Dcc.getCV(stepsMSBCV);
-      uint16_t polarityCV = numPositionsCV + (i * 3) + 3;
-      uint8_t polarity = Dcc.getCV(polarityCV);
-      uint16_t steps = (stepsMSB << 8) + stepsLSB;
-      if (steps <= fullTurnSteps && polarity < 2) {
-        turntablePositions[i] = (turntablePosition) {baseTurntableAddress + i, steps, polarity};
-      } else {
-        if (steps > fullTurnSteps) {
-          Serial.println((String)"ERROR: Defined position in steps exceeds maximum of " + fullTurnSteps);
-          Serial.println((String)"Index " + i + " MSB CV " + stepsMSBCV + ":" + stepsMSB + " LSB CV " + stepsLSBCV + ":" + stepsLSB);
-        }
-        if (polarity > 1) {
-          Serial.println((String)"ERROR: Defined polarity of " + polarity + " is invalid, must be 0 or 1");
-        }
-      }
-    }
-  } else {
-    Serial.print("Defined number of turntable positions ");
-    Serial.print(cvPositions);
-    Serial.println(" is invalid");
-  }
-}
-*/
 
 void setupStepperDriver() {
   stepper1.setMaxSpeed(STEPPER_MAX_SPEED);        // Sets the maximum permitted speed
@@ -326,14 +254,6 @@ void setup() {
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
   printPositions();
-  /*
-  for(uint8_t i = 0; i < numTurntablePositions; i++)
-  {
-    Serial.print((String)"DCC Addr " + turntablePositions[i].dccAddress);
-    Serial.print((String)" - Steps: "+turntablePositions[i].positionSteps);
-    Serial.println((String)" Polarity: "+turntablePositions[i].polarity);
-  }
-  */
   setupStepperDriver(); // Initialise the stepper driver
   if(moveToHomePosition()) {
     setupDCCDecoder();
