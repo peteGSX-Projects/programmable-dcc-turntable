@@ -21,9 +21,11 @@ The full step pin driving order is 1, 3, 2, 4 to drive anti-clockwise, and 4, 2,
 
 A hall effect sensor is combined with a magnet attached to one end of the turntable bridge to detect the home position in order to maintain calibration and alignment with the various track positions.
 
-## Defining positions
+The position definitions are defined as below, and are read "live" each time a valid accessory command is received, meaning position definitions can be updated at any time and will be reflected immediately.
 
-**IMPORTANT** There is a hidden feature whereby you can send an accessory (a) command to the decoder address one above the highest defined turnout position to cause the Arduino to reset. This is handy to trigger a reset after programming on the main track. It's important to note this to avoid putting any other accessories in service utilising the decoder address.
+This allows for easy fine tuning of position alignment with tracks.
+
+## Defining positions
 
 The positions are defined in the reserved manufacturer unique CVs from 513 to 895.
 
@@ -46,7 +48,6 @@ CV 513 = 6
 | 4 | 204 | 210 | 523 | 210 | 524 | 0 | 525 | 0 |
 | 5 | 205 | 1122 | 526 | 98 | 527 | 4 | 528 | 1 |
 | 6 | 206 | 1164 | 529 | 140 | 530 | 4 | 531 | 1 |
-| Reset | 207 | NA | NA | NA | NA | NA | NA | NA |
 
 # Arduino pins
 The code uses the pins below by default for the various functions, adjust as suits your needs.
