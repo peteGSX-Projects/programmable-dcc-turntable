@@ -23,7 +23,7 @@ A hall effect sensor is combined with a magnet attached to one end of the turnta
 
 The position definitions are defined as below, and are read "live" each time a valid accessory command is received, meaning position definitions can be updated at any time and will be reflected immediately.
 
-This allows for easy fine tuning of position alignment with tracks.
+This allows for easy fine tuning of position alignment with tracks as the turntable can be programmed while connected to the main track, with position adjustments effective immediately.
 
 ## Defining positions
 

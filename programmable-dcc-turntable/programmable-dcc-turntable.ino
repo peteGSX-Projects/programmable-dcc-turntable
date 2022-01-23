@@ -210,7 +210,7 @@ void setupDCCDecoder() {
   Dcc.pin(0, DCC_PIN, 1);
 #endif
   // Call the main DCC Init function to enable the DCC Receiver
-  Dcc.init( MAN_ID_DIY, DCC_DECODER_VERSION_NUM, CV29_ACCESSORY_DECODER | CV29_OUTPUT_ADDRESS_MODE, 0 );
+  Dcc.init(MAN_ID_DIY, DCC_DECODER_VERSION_NUM, CV29_ACCESSORY_DECODER | CV29_OUTPUT_ADDRESS_MODE, baseTurntableAddress);
 }
 
 uint16_t getBaseAddress() {
