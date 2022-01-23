@@ -25,6 +25,14 @@ The position definitions are defined as below, and are read "live" each time a v
 
 This allows for easy fine tuning of position alignment with tracks as the turntable can be programmed while connected to the main track, with position adjustments effective immediately.
 
+## Programming on Main/Ops Mode Programming
+
+Quick note on successfully programming on main.
+
+For this to work, a CV containing the programming address needs to be passed to the Dcc.init() call. The default uses another manufacturer unique CV (112) to hold the programming address.
+
+At this point, my recommendation is to program CV 112 with your decoder's base address, and simply use the base address when performing ops mode programming activities.
+
 ## Defining positions
 
 The positions are defined in the reserved manufacturer unique CVs from 513 to 895.
