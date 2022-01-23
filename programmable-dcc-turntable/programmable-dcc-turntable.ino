@@ -251,7 +251,6 @@ void setup() {
   Serial.println((String)"Programmable DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
   Serial.println((String)"Full Rotation Steps: " + fullTurnSteps);
   baseTurntableAddress = getBaseAddress();  // Get our base DCC address
-  //initPositions();  // Initialise our array of positions
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
   printPositions();
