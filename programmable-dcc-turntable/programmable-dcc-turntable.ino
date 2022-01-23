@@ -45,6 +45,7 @@ int16_t lastStep = 0;                       // Record of the last step position 
 const int16_t fullTurnSteps = 2048;         // Define steps for a full turn
 const int16_t halfTurnSteps = fullTurnSteps / 2; // Define steps for a half turn, used to move least distance
 uint16_t lastAddr = 0xFFFF;                 // Record of the last DCC addressed received
+#define OPS_PROGRAM_CV 112                  // CV to use for programming on main
 
 // Define decoder version
 #define DCC_DECODER_VERSION_NUM 1
@@ -210,7 +211,7 @@ void setupDCCDecoder() {
   Dcc.pin(0, DCC_PIN, 1);
 #endif
   // Call the main DCC Init function to enable the DCC Receiver
-  Dcc.init(MAN_ID_DIY, DCC_DECODER_VERSION_NUM, CV29_ACCESSORY_DECODER | CV29_OUTPUT_ADDRESS_MODE, 550);
+  Dcc.init(MAN_ID_DIY, DCC_DECODER_VERSION_NUM, CV29_ACCESSORY_DECODER | CV29_OUTPUT_ADDRESS_MODE, OPS_PROGRAM_CV);
 }
 
 uint16_t getBaseAddress() {
