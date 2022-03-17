@@ -96,6 +96,7 @@ uint8_t FactoryDefaultCVIndex = 0;
 // If using OLED, include functions for display updates and create object
 #if defined(USE_OLED)
 
+// Create OLED object
 SSD1306AsciiAvrI2c oled;
 
 // This function sets the title text
@@ -120,6 +121,10 @@ void oledUpdate(int column, int row, String textToPrint) {
   oled.clearToEOL();
   oled.write(textChar);
 }
+
+// Create the ticker state object
+TickerState tickerState;
+uint32_t tickTime = 0;
 
 #endif
 
