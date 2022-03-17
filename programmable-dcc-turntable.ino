@@ -63,7 +63,7 @@ uint16_t lastAddr = 0xFFFF;                 // Record of the last DCC addressed 
 AccelStepper stepper1(AccelStepper::FULL4WIRE, ULN2003_PIN4, ULN2003_PIN2, ULN2003_PIN3, ULN2003_PIN1);   // Clockwise
 
 // Dcc Accessory Decoder object
-NmraDcc  Dcc ;
+NmraDcc  Dcc;
 DCC_MSG  Packet;
 
 // Define the struct for CVs
@@ -94,7 +94,7 @@ void notifyCVResetFactoryDefault()
   // Make FactoryDefaultCVIndex non-zero and equal to num CV's to be reset 
   // to flag to the loop() function that a reset to Factory Defaults needs to be done
   FactoryDefaultCVIndex = sizeof(FactoryDefaultCVs)/sizeof(CVPair);
-};
+}
 
 // This function is called by the NmraDcc library when a DCC ACK needs to be sent
 // Calling this function should cause an increased 60ma current drain on the power supply for 6ms to ACK a CV Read 
@@ -108,7 +108,7 @@ void notifyCVAck(void)
 
 // Uncomment to print all DCC Packets
 //#define NOTIFY_DCC_MSG
-#ifdef  NOTIFY_DCC_MSG
+#if defined(NOTIFY_DCC_MSG)
 void notifyDccMsg( DCC_MSG * Msg) {
   Serial.print("notifyDccMsg: ");
   for(uint8_t i = 0; i < Msg->Size; i++)
@@ -152,7 +152,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
     }
   }
-};
+}
 
 void printPositions() {
   Serial.println((String)Dcc.getCV(numPositionsCV) + " turntable positions defined:");
@@ -205,7 +205,7 @@ void setupDCCDecoder() {
   // Setup which External Interrupt, the Pin it's associated with that we're using and enable the Pull-Up
   // Many Arduino Cores now support the digitalPinToInterrupt() function that makes it easier to figure out the
   // Interrupt Number for the Arduino Pin number, which reduces confusion. 
-#ifdef digitalPinToInterrupt
+#if defined(digitalPinToInterrupt)
   Dcc.pin(DCC_PIN, 0);
 #else
   Dcc.pin(0, DCC_PIN, 1);
@@ -271,7 +271,7 @@ void loop() {
   // Process the Stepper Library
   stepper1.run();
   // If we've enabled it, disable stepper motor when not actively turning
-#ifdef DISABLE_OUTPUTS_IDLE
+#if defined(DISABLE_OUTPUTS_IDLE)
   if(stepper1.isRunning() != lastIsRunningState)
   {
     lastIsRunningState = stepper1.isRunning();
