@@ -37,8 +37,6 @@ See the README for the full list of features and instructions.
 // Define global variables
 uint16_t baseTurntableAddress;              // First turntable position address
 #define HOME_SENSOR_ACTIVE_STATE LOW        // State to flag when home
-//uint16_t numTurntablePositions = 1;         // Placeholder assignment of 1 until retrieved from CV
-//const int maxTurntablePositions = 50;       // Define a sane limit of positions
 bool lastIsRunningState;                    // Store last running state to help disable stepper
 const uint16_t numPositionsCV = 513;        // CV number to store the number of turntable positions in
 int16_t lastStep = 0;                       // Record of the last step position moved to
