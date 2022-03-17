@@ -99,16 +99,17 @@ uint8_t FactoryDefaultCVIndex = 0;
 SSD1306AsciiAvrI2c oled;
 
 // This function sets the title text
-void setTitle(String titleText) {
+void setTitle(String titleText, String subtitleText) {
   oledUpdate(0, 0, titleText);
+  oledUpdate(0, 1, subtitleText);
 }
 
 void setAddress(String addressText) {
-  oledUpdate(0, 1, addressText);
+  oledUpdate(0, 2, addressText);
 }
 
 void setActivity(String activityText) {
-  oledUpdate(0, 2, activityText);
+  oledUpdate(0, 3, activityText);
 }
 
 // This function updates the OLED with the provided text at the cursor position
@@ -164,6 +165,10 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 {
   if ((Addr == baseTurntableAddress || (Addr > baseTurntableAddress && Addr < baseTurntableAddress + Dcc.getCV(numPositionsCV))) && OutputPower && stepper1.isRunning() == false && Addr != lastAddr) {
     lastAddr = Addr;
+#if defined(USE_OLED)
+    int position = Addr - baseTurntableAddress + 1;
+    setActivity((String)"Move to position " + position);
+#endif
     uint8_t cvOffset = Addr - baseTurntableAddress;
     uint16_t stepsLSBCV = numPositionsCV + (cvOffset * 3) + 1;
     uint8_t stepsLSB = Dcc.getCV(stepsLSBCV);
@@ -225,6 +230,9 @@ void setupStepperDriver() {
 }
 
 bool moveToHomePosition() {
+#if defined(USE_OLED)
+  setActivity((String)"Finding home");
+#endif
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
   stepper1.move(fullTurnSteps * 2);
   while(digitalRead(HOME_SENSOR_PIN) != HOME_SENSOR_ACTIVE_STATE)
@@ -233,6 +241,9 @@ bool moveToHomePosition() {
     stepper1.stop();
     stepper1.setCurrentPosition(0);
     Serial.println(F("Found Home Position - Setting Current Position to 0"));
+#if defined(USE_OLED)
+    setActivity((String)"Found home");
+#endif
     return true;
   } else {
     Serial.println(F("Home Position NOT FOUND - Check Sensor Hardware"));
@@ -294,7 +305,7 @@ void setup() {
   oled.begin(&Adafruit128x64, OLED_ADDRESS);
   oled.setFont(OLED_FONT);
   oled.clear();
-  setTitle((String)"Controller v" + DCC_DECODER_VERSION_NUM);
+  setTitle((String)"DCC Turntable", (String)"Controller v" + DCC_DECODER_VERSION_NUM);
   setAddress((String)"DCC address: " + baseTurntableAddress);
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
