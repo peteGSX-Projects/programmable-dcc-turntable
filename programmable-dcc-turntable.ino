@@ -19,9 +19,21 @@ the NrmaDcc library.
 See the README for the full list of features and instructions.
 *************************************************************/
 
+// Required library includes
 #include <AccelStepper.h>
 #include <NmraDcc.h>
 #include <avr/wdt.h>
+
+// Comment out if OLED not in use
+#define USE_OLED
+#define OLED_ADDRESS 0x3C
+#define OLED_FONT System5x7
+
+// If OLED in use, include libraries
+#if defined(USE_OLED)
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiAvrI2c.h"
+#endif
 
 // Define our pins
 #define DCC_PIN 2                           // Pin to receive DCC signal
@@ -80,6 +92,35 @@ CVPair FactoryDefaultCVs [] =
 
 // Define the index in the array that holds the factory default CVs
 uint8_t FactoryDefaultCVIndex = 0;
+
+// If using OLED, include functions for display updates and create object
+#if defined(USE_OLED)
+
+SSD1306AsciiAvrI2c oled;
+
+// This function sets the title text
+void setTitle(String titleText) {
+  oledUpdate(0, 0, titleText);
+}
+
+void setAddress(String addressText) {
+  oledUpdate(0, 1, addressText);
+}
+
+void setActivity(String activityText) {
+  oledUpdate(0, 2, activityText);
+}
+
+// This function updates the OLED with the provided text at the cursor position
+void oledUpdate(int column, int row, String textToPrint) {
+  char textChar[textToPrint.length() + 1];
+  textToPrint.toCharArray(textChar, textToPrint.length() + 1);
+  oled.setCursor(column, row);
+  oled.clearToEOL();
+  oled.write(textChar);
+}
+
+#endif
 
 void resetFunc() {
   // Function to perform a software reset courtesy of the DCC++ EX team
@@ -249,6 +290,13 @@ void setup() {
   Serial.println((String)"Programmable DCC Turntable Controller version " + DCC_DECODER_VERSION_NUM);
   Serial.println((String)"Full Rotation Steps: " + fullTurnSteps);
   baseTurntableAddress = getBaseAddress();  // Get our base DCC address
+#if defined(USE_OLED)
+  oled.begin(&Adafruit128x64, OLED_ADDRESS);
+  oled.setFont(OLED_FONT);
+  oled.clear();
+  setTitle((String)"Controller v" + DCC_DECODER_VERSION_NUM);
+  setAddress((String)"DCC address: " + baseTurntableAddress);
+#endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
   printPositions();
