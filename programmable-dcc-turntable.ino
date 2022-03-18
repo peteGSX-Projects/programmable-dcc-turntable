@@ -28,6 +28,7 @@ See the README for the full list of features and instructions.
 #define USE_OLED
 #define OLED_ADDRESS 0x3C
 #define OLED_FONT System5x7
+#define TICKER_CHECK 1
 
 // If OLED in use, include libraries
 #if defined(USE_OLED)
@@ -124,7 +125,31 @@ void oledUpdate(int column, int row, String textToPrint) {
 
 // Create the ticker state object
 TickerState tickerState;
-uint32_t tickTime = 0;
+
+// Set up our ticker char
+char activityTicker[50];
+
+// This function updates the ticker text from the provided string
+// If the resultant char is different to the existing char, the ticker is updated
+void updateTickerText(String tickerText) {
+    if (tickerText.length() < 22) {
+        //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
+        int pad = 22 - tickerText.length();
+        for (int p = 0; p < pad; p++) {
+            tickerText += ".";
+        }
+    }
+    char tickerChar[50];
+    tickerText.toCharArray(tickerChar, tickerText.length() + 1);
+    int textLength = tickerText.length();
+    if (strncmp(activityTicker, tickerChar, sizeof(activityTicker)) != 0) {
+        //Serial.println("Need to update ticker");
+        for (int c = 0; c < textLength; c++) {
+            activityTicker[c] = tickerChar[c];
+        }
+        activityTicker[tickerText.length()] = '\0';
+    }
+}
 
 #endif
 
@@ -197,6 +222,9 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       setPolarity(polarity);
       lastStep = steps;
       stepper1.move(moveSteps);
+#if defined(USE_OLED)
+      updateTickerText((String)"Moving " + moveSteps + " to position " + position);
+#endif
     } else {
       Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
     }
@@ -237,6 +265,7 @@ void setupStepperDriver() {
 bool moveToHomePosition() {
 #if defined(USE_OLED)
   setActivity((String)"Finding home");
+  updateTickerText((String)"Homing");
 #endif
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
   stepper1.move(fullTurnSteps * 2);
@@ -248,6 +277,7 @@ bool moveToHomePosition() {
     Serial.println(F("Found Home Position - Setting Current Position to 0"));
 #if defined(USE_OLED)
     setActivity((String)"Found home");
+    updateTickerText((String)"Idling");
 #endif
     return true;
   } else {
@@ -312,6 +342,8 @@ void setup() {
   oled.clear();
   setTitle((String)"DCC Turntable", (String)"Controller v" + DCC_DECODER_VERSION_NUM);
   setAddress((String)"DCC address: " + baseTurntableAddress);
+  oled.tickerInit(&tickerState, OLED_FONT, 4, false, 0, 128);
+  updateTickerText((String)"Idling");
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
@@ -327,6 +359,8 @@ void setup() {
   }
 }
 
+uint32_t tickTime = 0;
+
 void loop() {
   // You MUST call the NmraDcc.process() method frequently from the Arduino loop() function for correct library operation
   Dcc.process();
@@ -340,8 +374,21 @@ void loop() {
     if(!lastIsRunningState)
     {
       stepper1.disableOutputs();
+#if defined(USE_OLED)
+      // Set idling ticker text when finished moving
+      updateTickerText((String)"Idling");
+#endif
     }
   }
+#endif
+#if defined(USE_OLED)
+  if (tickTime <= millis()) {
+        tickTime = millis() + 30;
+        int8_t checkError = oled.tickerTick(&tickerState);
+        if (checkError <= TICKER_CHECK) {
+            oled.tickerText(&tickerState, activityTicker);
+        }
+    }
 #endif
   // If we flagged a DCC reset, do it
   if ( FactoryDefaultCVIndex && Dcc.isSetCVReady()) {
