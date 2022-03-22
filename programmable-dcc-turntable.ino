@@ -114,6 +114,10 @@ void setActivity(String activityText) {
   oledUpdate(0, 3, activityText);
 }
 
+void setPolarityOLED(String polarityText) {
+  oledUpdate(0, 4, polarityText);
+}
+
 // This function updates the OLED with the provided text at the cursor position
 void oledUpdate(int column, int row, String textToPrint) {
   char textChar[textToPrint.length() + 1];
@@ -123,11 +127,13 @@ void oledUpdate(int column, int row, String textToPrint) {
   oled.write(textChar);
 }
 
-// Create the ticker state object
+// Create the ticker state objects
 TickerState tickerState;
+TickerState tickerStatePositions;
 
 // Set up our ticker char
 char activityTicker[50];
+char positionsTicker[50];
 
 // This function updates the ticker text from the provided string
 // If the resultant char is different to the existing char, the ticker is updated
@@ -148,6 +154,28 @@ void updateTickerText(String tickerText) {
             activityTicker[c] = tickerChar[c];
         }
         activityTicker[tickerText.length()] = '\0';
+    }
+}
+
+// This function updates the positions ticker text from the provided string
+// If the resultant char is different to the existing char, the ticker is updated
+void updatePositionTickerText(String tickerText) {
+    if (tickerText.length() < 22) {
+        //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
+        int pad = 22 - tickerText.length();
+        for (int p = 0; p < pad; p++) {
+            tickerText += ".";
+        }
+    }
+    char tickerChar[50];
+    tickerText.toCharArray(tickerChar, tickerText.length() + 1);
+    int textLength = tickerText.length();
+    if (strncmp(positionsTicker, tickerChar, sizeof(positionsTicker)) != 0) {
+        //Serial.println("Need to update ticker");
+        for (int c = 0; c < textLength; c++) {
+            positionsTicker[c] = tickerChar[c];
+        }
+        positionsTicker[tickerText.length()] = '\0';
     }
 }
 
@@ -328,6 +356,13 @@ void setPolarity(uint8_t Polarity) {
   // Function to set the correct polarity for the bridge track, 0 normal, 1 reverse
   digitalWrite(RELAY1, Polarity);
   digitalWrite(RELAY2, Polarity);
+#if defined(USE_OLED)
+  if (Polarity == 0) {
+    setPolarityOLED((String)"Polarity: Forward");
+  } else {
+    setPolarityOLED((String)"Polarity: Reversed");
+  }
+#endif
 }
 
 void setup() {
@@ -342,8 +377,10 @@ void setup() {
   oled.clear();
   setTitle((String)"DCC Turntable", (String)"Controller v" + DCC_DECODER_VERSION_NUM);
   setAddress((String)"DCC address: " + baseTurntableAddress);
-  oled.tickerInit(&tickerState, OLED_FONT, 4, false, 0, 128);
+  oled.tickerInit(&tickerState, OLED_FONT, 5, false, 0, 128);
   updateTickerText((String)"Idling");
+  oled.tickerInit(&tickerStatePositions, OLED_FONT, 6, false, 0, 128);
+  updatePositionTickerText((String)"This will show turntable positions and steps...");
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
@@ -383,12 +420,16 @@ void loop() {
 #endif
 #if defined(USE_OLED)
   if (tickTime <= millis()) {
-        tickTime = millis() + 30;
-        int8_t checkError = oled.tickerTick(&tickerState);
-        if (checkError <= TICKER_CHECK) {
-            oled.tickerText(&tickerState, activityTicker);
-        }
+    tickTime = millis() + 30;
+    int8_t checkError = oled.tickerTick(&tickerState);
+    if (checkError <= TICKER_CHECK) {
+      oled.tickerText(&tickerState, activityTicker);
     }
+    checkError = oled.tickerTick(&tickerStatePositions);
+    if (checkError <= TICKER_CHECK) {
+      oled.tickerText(&tickerStatePositions, positionsTicker);
+    }
+  }
 #endif
   // If we flagged a DCC reset, do it
   if ( FactoryDefaultCVIndex && Dcc.isSetCVReady()) {
