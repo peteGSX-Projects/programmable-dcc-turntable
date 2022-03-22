@@ -223,7 +223,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       lastStep = steps;
       stepper1.move(moveSteps);
 #if defined(USE_OLED)
-      updateTickerText((String)"Moving " + moveSteps + " to position " + position);
+      updateTickerText((String)"Moving " + moveSteps + " steps to position " + position + "...");
 #endif
     } else {
       Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
