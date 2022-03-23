@@ -133,7 +133,7 @@ TickerState tickerStatePositions;
 
 // Set up our ticker char
 char activityTicker[50];
-char positionsTicker[50];
+char positionsTicker[200];
 
 // This function updates the ticker text from the provided string
 // If the resultant char is different to the existing char, the ticker is updated
@@ -167,7 +167,7 @@ void updatePositionTickerText(String tickerText) {
             tickerText += ".";
         }
     }
-    char tickerChar[50];
+    char tickerChar[200];
     tickerText.toCharArray(tickerChar, tickerText.length() + 1);
     int textLength = tickerText.length();
     if (strncmp(positionsTicker, tickerChar, sizeof(positionsTicker)) != 0) {
@@ -261,6 +261,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 
 void printPositions() {
   Serial.println((String)Dcc.getCV(numPositionsCV) + " turntable positions defined:");
+  String positionText = "Position/steps/polarity: ";
   for (uint8_t i = 0; i < Dcc.getCV(numPositionsCV); i++) {
     Serial.print("DCC addr ");
     Serial.print(baseTurntableAddress + i, DEC);
@@ -272,6 +273,7 @@ void printPositions() {
     uint16_t polarityCV = numPositionsCV + (i * 3) + 3;
     uint8_t polarity = Dcc.getCV(polarityCV);
     uint16_t steps = (stepsMSB << 8) + stepsLSB;
+    uint8_t position = i + 1;
     if (steps > fullTurnSteps) {
       Serial.println((String)"ERROR! Steps cannot exceed " + fullTurnSteps);
     }
@@ -281,7 +283,11 @@ void printPositions() {
     Serial.print((String)steps + " steps (LSB CV " + stepsLSBCV + "=" + stepsLSB);
     Serial.print((String)", MSB CV " + stepsMSBCV + "=" + stepsMSB);
     Serial.println((String)") with polarity flag " + polarity + " (CV " + polarityCV + ")");
+    positionText += (String)position + "/" + (String)steps + "/" + (String)polarity + ",";
   }
+  positionText += "...";
+  Serial.println(positionText);
+  updatePositionTickerText(positionText);
 }
 
 void setupStepperDriver() {
@@ -380,7 +386,6 @@ void setup() {
   oled.tickerInit(&tickerState, OLED_FONT, 5, false, 0, 128);
   updateTickerText((String)"Idling");
   oled.tickerInit(&tickerStatePositions, OLED_FONT, 6, false, 0, 128);
-  updatePositionTickerText((String)"This will show turntable positions and steps...");
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
