@@ -283,11 +283,14 @@ void printPositions() {
     Serial.print((String)steps + " steps (LSB CV " + stepsLSBCV + "=" + stepsLSB);
     Serial.print((String)", MSB CV " + stepsMSBCV + "=" + stepsMSB);
     Serial.println((String)") with polarity flag " + polarity + " (CV " + polarityCV + ")");
-    positionText += (String)position + "/" + (String)steps + "/" + (String)polarity + ",";
+    positionText += (String)position + "/" + (String)steps + "/" + (String)polarity;
+    if (i < Dcc.getCV(numPositionsCV) - 1) {
+      positionText += ",";
+    }
   }
   positionText += "...";
   Serial.println(positionText);
-  updatePositionTickerText(positionText);
+  //updatePositionTickerText((String)positionText);
 }
 
 void setupStepperDriver() {
