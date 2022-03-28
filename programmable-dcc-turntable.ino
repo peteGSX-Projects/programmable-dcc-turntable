@@ -133,11 +133,12 @@ TickerState positionsTickerState;
 
 // Set up our ticker char
 char activityTicker[50];
-char positionsTicker[200];
+char positionsTicker[300];
 
 // This function updates the ticker text from the provided string
-// If the resultant char is different to the existing char, the ticker is updated
 void updateTickerText(String tickerText, char *tickerToUpdate) {
+    Serial.println((String)"Updating ticker");
+    Serial.println(tickerText);
     if (tickerText.length() < 22) {
         int pad = 22 - tickerText.length();
         for (int p = 0; p < pad; p++) {
@@ -152,28 +153,6 @@ void updateTickerText(String tickerText, char *tickerToUpdate) {
     }
     tickerToUpdate[tickerText.length()] = '\0';
 }
-
-// This function updates the positions ticker text from the provided string
-// If the resultant char is different to the existing char, the ticker is updated
-// void updatePositionTickerText(String tickerText) {
-//     if (tickerText.length() < 22) {
-//         //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
-//         int pad = 22 - tickerText.length();
-//         for (int p = 0; p < pad; p++) {
-//             tickerText += ".";
-//         }
-//     }
-//     char tickerChar[200];
-//     tickerText.toCharArray(tickerChar, tickerText.length() + 1);
-//     int textLength = tickerText.length();
-//     if (strncmp(positionsTicker, tickerChar, sizeof(positionsTicker)) != 0) {
-//         //Serial.println("Need to update ticker");
-//         for (int c = 0; c < textLength; c++) {
-//             positionsTicker[c] = tickerChar[c];
-//         }
-//         positionsTicker[tickerText.length()] = '\0';
-//     }
-// }
 
 #endif
 
@@ -221,7 +200,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
     lastAddr = Addr;
 #if defined(USE_OLED)
     int position = Addr - baseTurntableAddress + 1;
-    setActivity((String)"Move to position " + position);
+    setActivity("Move to position " + (String)position);
 #endif
     uint8_t cvOffset = Addr - baseTurntableAddress;
     uint16_t stepsLSBCV = numPositionsCV + (cvOffset * 3) + 1;
@@ -247,7 +226,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       lastStep = steps;
       stepper1.move(moveSteps);
 #if defined(USE_OLED)
-      updateTickerText((String)"Moving " + moveSteps + " steps to position " + position + "...", positionsTicker);
+      updateTickerText("Moving " + (String)moveSteps + " steps to position " + (String)position + "...", activityTicker);
 #endif
     } else {
       Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
@@ -256,10 +235,13 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
 }
 
 void printPositions() {
-  Serial.println((String)Dcc.getCV(numPositionsCV) + " turntable positions defined:");
-  String positionText = "Position/steps/polarity: ";
-  for (uint8_t i = 0; i < Dcc.getCV(numPositionsCV); i++) {
-    Serial.print("DCC addr ");
+  uint8_t numPositions = Dcc.getCV(numPositionsCV);
+  Serial.println((String)numPositions + " turntable positions defined:");
+  String positionTickerText = "Position/steps/polarity (" + (String)numPositions + "): ";
+  for (uint8_t i = 0; i < numPositions; i++) {
+    Serial.println("Iteration " + (String)i);
+    uint8_t position = i + 1;
+    Serial.print("Position " + (String)position + " DCC addr ");
     Serial.print(baseTurntableAddress + i, DEC);
     Serial.print(" definition: ");
     uint16_t stepsLSBCV = numPositionsCV + (i * 3) + 1;
@@ -269,7 +251,6 @@ void printPositions() {
     uint16_t polarityCV = numPositionsCV + (i * 3) + 3;
     uint8_t polarity = Dcc.getCV(polarityCV);
     uint16_t steps = (stepsMSB << 8) + stepsLSB;
-    uint8_t position = i + 1;
     if (steps > fullTurnSteps) {
       Serial.println((String)"ERROR! Steps cannot exceed " + fullTurnSteps);
     }
@@ -279,14 +260,21 @@ void printPositions() {
     Serial.print((String)steps + " steps (LSB CV " + stepsLSBCV + "=" + stepsLSB);
     Serial.print((String)", MSB CV " + stepsMSBCV + "=" + stepsMSB);
     Serial.println((String)") with polarity flag " + polarity + " (CV " + polarityCV + ")");
-    positionText += (String)position + "/" + (String)steps + "/" + (String)polarity;
-    if (i < Dcc.getCV(numPositionsCV) - 1) {
-      positionText += ",";
+    String positionText = (String)position + "/" + (String)steps + "/" + (String)polarity;
+    Serial.println(positionText);
+    // positionTickerText += (String)positionText;
+    // positionTickerText += (String)position;
+    // positionTickerText += "/";
+    // positionTickerText += (String)steps;
+    // positionTickerText += "/";
+    // positionTickerText += (String)polarity;
+    if (i < numPositions) {
+      positionTickerText += ",";
     }
   }
-  positionText += "...";
-  Serial.println(positionText);
-  updateTickerText((String)positionText, positionsTicker);
+  positionTickerText += "...";
+  Serial.println(positionTickerText);
+  // updateTickerText(positionTickerText, positionsTicker);
 }
 
 void setupStepperDriver() {
@@ -297,8 +285,8 @@ void setupStepperDriver() {
 
 bool moveToHomePosition() {
 #if defined(USE_OLED)
-  setActivity((String)"Finding home");
-  updateTickerText((String)"Homing", activityTicker);
+  setActivity("Finding home");
+  updateTickerText("Homing", activityTicker);
 #endif
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
   stepper1.move(fullTurnSteps * 2);
@@ -309,14 +297,14 @@ bool moveToHomePosition() {
     stepper1.setCurrentPosition(0);
     Serial.println(F("Found Home Position - Setting Current Position to 0"));
 #if defined(USE_OLED)
-    setActivity((String)"Found home");
-    updateTickerText((String)"Idling", activityTicker);
+    setActivity("Found home");
+    updateTickerText("Found home, idling", activityTicker);
 #endif
     return true;
   } else {
     Serial.println(F("Home Position NOT FOUND - Check Sensor Hardware"));
 #if defined(USE_OLED)
-    setActivity((String)"No home found");
+    setActivity("No home found");
 #endif
   }
   return false;  
@@ -341,7 +329,6 @@ uint16_t getBaseAddress() {
   uint16_t cvMSB = Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_MSB);
   uint16_t cvLSB = Dcc.getCV(CV_ACCESSORY_DECODER_ADDRESS_LSB);
   uint16_t eepromBaseTurntableAddress = (((cvMSB * 64) + cvLSB - 1) * 4) + 1  ;
-  //uint16_t numTurntablePositions = Dcc.getCV(numPositionsCV);
   // Validate our MSB and CSB values are valid, otherwise use default decoder address of 1
   if ((cvMSB == 0 && cvLSB == 0) || cvMSB > 7 || cvLSB > 63) {
     Serial.println("WARNING: The EEPROM stored address CVs contain invalid MSB and/or LSB values, returning default of 1");
@@ -366,9 +353,9 @@ void setPolarity(uint8_t Polarity) {
   digitalWrite(RELAY2, Polarity);
 #if defined(USE_OLED)
   if (Polarity == 0) {
-    setPolarityOLED((String)"Polarity: Forward");
+    setPolarityOLED("Polarity: Forward");
   } else {
-    setPolarityOLED((String)"Polarity: Reversed");
+    setPolarityOLED("Polarity: Reversed");
   }
 #endif
 }
@@ -383,10 +370,9 @@ void setup() {
   oled.begin(&Adafruit128x64, OLED_ADDRESS);
   oled.setFont(OLED_FONT);
   oled.clear();
-  setTitle((String)"DCC Turntable", (String)"Controller v" + DCC_DECODER_VERSION_NUM);
-  setAddress((String)"DCC address: " + baseTurntableAddress);
+  setTitle("DCC Turntable", "Controller v" + (String)DCC_DECODER_VERSION_NUM);
+  setAddress("DCC address: " + (String)baseTurntableAddress);
   oled.tickerInit(&activityTickerState, OLED_FONT, 5, false, 0, 128);
-  updateTickerText((String)"Idling", activityTicker);
   oled.tickerInit(&positionsTickerState, OLED_FONT, 6, false, 0, 128);
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
@@ -420,7 +406,7 @@ void loop() {
       stepper1.disableOutputs();
 #if defined(USE_OLED)
       // Set idling ticker text when finished moving
-      updateTickerText((String)"Idling", activityTicker);
+      updateTickerText("Idling", activityTicker);
 #endif
     }
   }
