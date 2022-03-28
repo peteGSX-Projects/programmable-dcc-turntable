@@ -128,8 +128,8 @@ void oledUpdate(int column, int row, String textToPrint) {
 }
 
 // Create the ticker state objects
-TickerState tickerState;
-TickerState tickerStatePositions;
+TickerState activityTickerState;
+TickerState positionsTickerState;
 
 // Set up our ticker char
 char activityTicker[50];
@@ -137,47 +137,43 @@ char positionsTicker[200];
 
 // This function updates the ticker text from the provided string
 // If the resultant char is different to the existing char, the ticker is updated
-void updateTickerText(String tickerText) {
+void updateTickerText(String tickerText, char *tickerToUpdate) {
     if (tickerText.length() < 22) {
-        //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
         int pad = 22 - tickerText.length();
         for (int p = 0; p < pad; p++) {
             tickerText += ".";
         }
     }
-    char tickerChar[50];
+    char tickerChar[tickerText.length() + 1];
     tickerText.toCharArray(tickerChar, tickerText.length() + 1);
     int textLength = tickerText.length();
-    if (strncmp(activityTicker, tickerChar, sizeof(activityTicker)) != 0) {
-        //Serial.println("Need to update ticker");
-        for (int c = 0; c < textLength; c++) {
-            activityTicker[c] = tickerChar[c];
-        }
-        activityTicker[tickerText.length()] = '\0';
+    for (int c = 0; c < textLength; c++) {
+        tickerToUpdate[c] = tickerChar[c];
     }
+    tickerToUpdate[tickerText.length()] = '\0';
 }
 
 // This function updates the positions ticker text from the provided string
 // If the resultant char is different to the existing char, the ticker is updated
-void updatePositionTickerText(String tickerText) {
-    if (tickerText.length() < 22) {
-        //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
-        int pad = 22 - tickerText.length();
-        for (int p = 0; p < pad; p++) {
-            tickerText += ".";
-        }
-    }
-    char tickerChar[200];
-    tickerText.toCharArray(tickerChar, tickerText.length() + 1);
-    int textLength = tickerText.length();
-    if (strncmp(positionsTicker, tickerChar, sizeof(positionsTicker)) != 0) {
-        //Serial.println("Need to update ticker");
-        for (int c = 0; c < textLength; c++) {
-            positionsTicker[c] = tickerChar[c];
-        }
-        positionsTicker[tickerText.length()] = '\0';
-    }
-}
+// void updatePositionTickerText(String tickerText) {
+//     if (tickerText.length() < 22) {
+//         //Serial.println((String)"Ticker text length is too short, padding (" + tickerText.length() + ")");
+//         int pad = 22 - tickerText.length();
+//         for (int p = 0; p < pad; p++) {
+//             tickerText += ".";
+//         }
+//     }
+//     char tickerChar[200];
+//     tickerText.toCharArray(tickerChar, tickerText.length() + 1);
+//     int textLength = tickerText.length();
+//     if (strncmp(positionsTicker, tickerChar, sizeof(positionsTicker)) != 0) {
+//         //Serial.println("Need to update ticker");
+//         for (int c = 0; c < textLength; c++) {
+//             positionsTicker[c] = tickerChar[c];
+//         }
+//         positionsTicker[tickerText.length()] = '\0';
+//     }
+// }
 
 #endif
 
@@ -251,7 +247,7 @@ void notifyDccAccTurnoutOutput( uint16_t Addr, uint8_t Direction, uint8_t Output
       lastStep = steps;
       stepper1.move(moveSteps);
 #if defined(USE_OLED)
-      updateTickerText((String)"Moving " + moveSteps + " steps to position " + position + "...");
+      updateTickerText((String)"Moving " + moveSteps + " steps to position " + position + "...", positionsTicker);
 #endif
     } else {
       Serial.println((String)"ERROR: CV definitions for " + Addr + " are invalid, not moving");
@@ -290,7 +286,7 @@ void printPositions() {
   }
   positionText += "...";
   Serial.println(positionText);
-  //updatePositionTickerText((String)positionText);
+  updateTickerText((String)positionText, positionsTicker);
 }
 
 void setupStepperDriver() {
@@ -302,7 +298,7 @@ void setupStepperDriver() {
 bool moveToHomePosition() {
 #if defined(USE_OLED)
   setActivity((String)"Finding home");
-  updateTickerText((String)"Homing");
+  updateTickerText((String)"Homing", activityTicker);
 #endif
   pinMode(HOME_SENSOR_PIN, INPUT_PULLUP);
   stepper1.move(fullTurnSteps * 2);
@@ -314,11 +310,14 @@ bool moveToHomePosition() {
     Serial.println(F("Found Home Position - Setting Current Position to 0"));
 #if defined(USE_OLED)
     setActivity((String)"Found home");
-    updateTickerText((String)"Idling");
+    updateTickerText((String)"Idling", activityTicker);
 #endif
     return true;
   } else {
     Serial.println(F("Home Position NOT FOUND - Check Sensor Hardware"));
+#if defined(USE_OLED)
+    setActivity((String)"No home found");
+#endif
   }
   return false;  
 }
@@ -386,9 +385,9 @@ void setup() {
   oled.clear();
   setTitle((String)"DCC Turntable", (String)"Controller v" + DCC_DECODER_VERSION_NUM);
   setAddress((String)"DCC address: " + baseTurntableAddress);
-  oled.tickerInit(&tickerState, OLED_FONT, 5, false, 0, 128);
-  updateTickerText((String)"Idling");
-  oled.tickerInit(&tickerStatePositions, OLED_FONT, 6, false, 0, 128);
+  oled.tickerInit(&activityTickerState, OLED_FONT, 5, false, 0, 128);
+  updateTickerText((String)"Idling", activityTicker);
+  oled.tickerInit(&positionsTickerState, OLED_FONT, 6, false, 0, 128);
 #endif
   pinMode(RELAY1, OUTPUT);  // Set our relay pins to output
   pinMode(RELAY2, OUTPUT);
@@ -398,9 +397,9 @@ void setup() {
     setupDCCDecoder();
     // Fake a DCC Packet to cause the Turntable to move to Position 1
     notifyDccAccTurnoutOutput(baseTurntableAddress, 1, 1);
-    #ifdef DISABLE_OUTPUTS_IDLE
+#ifdef DISABLE_OUTPUTS_IDLE
       stepper1.disableOutputs();
-    #endif
+#endif
   }
 }
 
@@ -421,7 +420,7 @@ void loop() {
       stepper1.disableOutputs();
 #if defined(USE_OLED)
       // Set idling ticker text when finished moving
-      updateTickerText((String)"Idling");
+      updateTickerText((String)"Idling", activityTicker);
 #endif
     }
   }
@@ -429,13 +428,13 @@ void loop() {
 #if defined(USE_OLED)
   if (tickTime <= millis()) {
     tickTime = millis() + 30;
-    int8_t checkError = oled.tickerTick(&tickerState);
+    int8_t checkError = oled.tickerTick(&activityTickerState);
     if (checkError <= TICKER_CHECK) {
-      oled.tickerText(&tickerState, activityTicker);
+      oled.tickerText(&activityTickerState, activityTicker);
     }
-    checkError = oled.tickerTick(&tickerStatePositions);
+    checkError = oled.tickerTick(&positionsTickerState);
     if (checkError <= TICKER_CHECK) {
-      oled.tickerText(&tickerStatePositions, positionsTicker);
+      oled.tickerText(&positionsTickerState, positionsTicker);
     }
   }
 #endif
