@@ -2,22 +2,22 @@ name: DCC Decoder Feedback
 about: Use this template to submit feedback on DCC decoders tested with EX-CommandStation
 title: "[Decoder Feedback]: "
 labels:
-  - Documentation
+  - Needs Documentation
 body:
-  # - type: markdown
-  #   attributes:
-  #     value: |
-  #       Use this template to submit feedback on a DCC decoder tested with EX-CommandStation.
-
-  #       This feedback will be captured and shared on our `List of tested decoders <https://dcc-ex.com/reference/hardware/decoder-list.html>` page on the website.
-  
-  - type: input
-    id: brand
+  - type: markdown
     attributes:
-      label: Brand
-      description: Provide the brand of the tested decoder.
-    validations:
-      required: true
+      value: |
+        Use this template to submit feedback on a DCC decoder tested with EX-CommandStation.
+
+        This feedback will be captured and shared on our `List of tested decoders <https://dcc-ex.com/reference/hardware/decoder-list.html>` page on the website.
+  
+  # - type: input
+  #   id: brand
+  #   attributes:
+  #     label: Brand
+  #     description: Provide the brand of the tested decoder.
+  #   validations:
+  #     required: true
   
   # - type: input
   #   id: model
