@@ -1,6 +1,6 @@
 # Programmable Arduino DCC Turntable Controller
 
-*Note:* Since writing this initial software, I've changed tact for my layout and will be using a DCC-EX integrated turntable using the `EX-Turntable <https://dcc-ex.com/ex-turntable/index.html>`_ software instead. The code for this programmable DCC turntable is still available if it's of use for anyone, but unlikely to undergo any further development.
+*Note:* Since writing this initial software, I've changed tact for my layout and will be using a DCC-EX integrated turntable using the (EX-Turntable)[https://dcc-ex.com/ex-turntable/index.html] software instead. The code for this programmable DCC turntable is still available if it's of use for anyone, but unlikely to undergo any further development.
 
 This is heavily based on the "DCCInterface_TurntableControl" example by Alex Shepherd included with the NmraDCC library, adapted to suit the ULN2003 stepper controller, my need for automatic polarity reversal of the bridge track, and the desire to be able to program the turntable positions via DCC commands.
 
